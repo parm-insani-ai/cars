@@ -1,0 +1,507 @@
+// Revline data model.
+// Multi-tenant: every domain row carries rooftopId. Enforce with RLS in Postgres.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Tenancy ---------------------------------------------------------------
+
+model DealerGroup {
+  id        String     @id @default(cuid())
+  name      String
+  createdAt DateTime   @default(now())
+  rooftops  Rooftop[]
+}
+
+model Rooftop {
+  id           String   @id @default(cuid())
+  groupId      String
+  name         String
+  timezone     String   @default("America/Los_Angeles")
+  crmProvider  String   @default("mock")         // vinsolutions | dealersocket | mock
+  phoneProvider String  @default("mock")         // callrevu | carwars | dialpad | ringcentral | mock
+  inventoryProvider String @default("mock")      // homenet | csv | mock
+  voiceProfile String?  @db.Text                 // dealership voice & SOP guidelines used in AI system prompt
+  consentTemplate String? @db.Text               // TCPA opt-out language appended to SMS
+
+  group      DealerGroup @relation(fields: [groupId], references: [id])
+  users      User[]
+  customers  Customer[]
+  leads      Lead[]
+  vehicles   Vehicle[]
+  calls      CallEvent[]
+  appointments Appointment[]
+  opportunities Opportunity[]
+  tasks      Task[]
+  recommendations Recommendation[]
+  alerts     Alert[]
+  serviceROs ServiceRO[]
+  scores     Score[]
+  aiEvals    AiEval[]
+
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  rep
+  bdc
+  sales_manager
+  gm
+  admin
+}
+
+model User {
+  id        String   @id @default(cuid())
+  rooftopId String
+  email     String   @unique
+  name      String
+  role      Role     @default(rep)
+  active    Boolean  @default(true)
+  phone     String?
+  createdAt DateTime @default(now())
+
+  rooftop     Rooftop       @relation(fields: [rooftopId], references: [id])
+  leads       Lead[]        @relation("AssignedRep")
+  tasks       Task[]
+  appointments Appointment[]
+  calls       CallEvent[]
+  recommendations Recommendation[]
+  alerts      Alert[]       @relation("ForUser")
+
+  @@index([rooftopId, role])
+}
+
+// --- Customers & Leads -----------------------------------------------------
+
+model Customer {
+  id         String    @id @default(cuid())
+  rooftopId  String
+  crmId      String?   // external CRM id
+  firstName  String?
+  lastName   String?
+  phone      String?
+  email      String?
+  smsConsent Boolean   @default(false)
+  emailConsent Boolean @default(false)
+  lastContactAt DateTime?
+  tags       String[]  @default([])
+
+  rooftop    Rooftop   @relation(fields: [rooftopId], references: [id])
+  leads      Lead[]
+  vehiclesOwned OwnedVehicle[]
+  calls      CallEvent[]
+  serviceROs ServiceRO[]
+  opportunities Opportunity[]
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([rooftopId, phone])
+  @@index([rooftopId, email])
+}
+
+enum LeadStatus {
+  new
+  engaged
+  appointment_set
+  appointment_shown
+  sold
+  lost
+  dead
+}
+
+enum LeadSource {
+  website
+  autotrader
+  cargurus
+  cars_com
+  facebook
+  referral
+  walk_in
+  phone_in
+  service
+  other
+}
+
+model Lead {
+  id              String       @id @default(cuid())
+  rooftopId       String
+  customerId      String
+  source          LeadSource
+  status          LeadStatus   @default(new)
+  assignedRepId   String?
+  interestVehicleId String?
+  rawPayload      Json?        // original ADF/webhook body
+  firstResponseAt DateTime?
+  score           Float        @default(0)  // 0..1 hot-ness
+  closeProbability Float       @default(0)  // 0..1 p(sold | engaged)
+  expectedGross   Float        @default(0)  // $ gross if sold
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  rooftop         Rooftop      @relation(fields: [rooftopId], references: [id])
+  customer        Customer     @relation(fields: [customerId], references: [id])
+  assignedRep     User?        @relation("AssignedRep", fields: [assignedRepId], references: [id])
+  interestVehicle Vehicle?     @relation(fields: [interestVehicleId], references: [id])
+  messages        Message[]
+  appointments    Appointment[]
+  opportunities   Opportunity[]
+  tasks           Task[]
+
+  @@index([rooftopId, status])
+  @@index([rooftopId, assignedRepId])
+  @@index([rooftopId, createdAt])
+}
+
+enum MessageChannel {
+  sms
+  email
+  note
+}
+
+enum MessageDirection {
+  inbound
+  outbound
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  leadId     String
+  channel    MessageChannel
+  direction  MessageDirection
+  body       String   @db.Text
+  draftedBy  String?  // "ai" | "rep:<userId>" | null
+  sentAt     DateTime?
+  approvedByUserId String?
+  externalId String?  // Twilio/SendGrid message id
+  createdAt  DateTime @default(now())
+
+  lead       Lead     @relation(fields: [leadId], references: [id])
+
+  @@index([leadId, createdAt])
+}
+
+// --- Inventory -------------------------------------------------------------
+
+model Vehicle {
+  id        String   @id @default(cuid())
+  rooftopId String
+  stockNumber String
+  vin       String?  @unique
+  year      Int
+  make      String
+  model     String
+  trim      String?
+  bodyType  String?  // sedan, suv, truck, etc.
+  fuel      String?  // gas, hybrid, ev
+  mileage   Int?     // for used
+  price     Float
+  cost      Float?   // dealer cost
+  isNew     Boolean  @default(true)
+  status    String   @default("in_stock") // in_stock | sold | in_transit
+  photoUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rooftop     Rooftop @relation(fields: [rooftopId], references: [id])
+  leadsInterested Lead[]
+
+  @@index([rooftopId, status])
+  @@index([rooftopId, bodyType, price])
+}
+
+model OwnedVehicle {
+  id             String    @id @default(cuid())
+  customerId     String
+  vin            String?
+  year           Int
+  make           String
+  model          String
+  purchaseDate   DateTime?
+  mileage        Int?
+  estimatedPayoff Float?
+  estimatedValue  Float?   // MMR / book value if known
+
+  customer       Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+}
+
+// --- Phone ---------------------------------------------------------------
+
+enum CallDirection {
+  inbound
+  outbound
+}
+
+enum CallOutcome {
+  connected
+  missed
+  voicemail
+  abandoned
+}
+
+model CallEvent {
+  id            String   @id @default(cuid())
+  rooftopId     String
+  externalId    String?  // phone system id
+  direction     CallDirection
+  outcome       CallOutcome
+  fromNumber    String
+  toNumber      String
+  startedAt     DateTime
+  endedAt       DateTime?
+  durationSec   Int?
+  repId         String?
+  customerId    String?
+  recordingUrl  String?
+  department    String?  // sales | service | parts
+
+  rooftop   Rooftop  @relation(fields: [rooftopId], references: [id])
+  rep       User?    @relation(fields: [repId], references: [id])
+  customer  Customer? @relation(fields: [customerId], references: [id])
+  transcript Transcript?
+
+  @@index([rooftopId, startedAt])
+  @@index([rooftopId, outcome, department])
+}
+
+model Transcript {
+  id          String   @id @default(cuid())
+  callId      String   @unique
+  text        String   @db.Text
+  summary     String?  @db.Text          // AI-generated
+  intent      String?                    // AI-classified: shopping | service | finance | general
+  objections  String[] @default([])      // AI-classified tags
+  nextAction  String?  @db.Text          // AI recommendation
+  createdAt   DateTime @default(now())
+
+  call        CallEvent @relation(fields: [callId], references: [id])
+}
+
+// --- Appointments ---------------------------------------------------------
+
+enum ApptStatus {
+  set
+  confirmed
+  shown
+  no_show
+  canceled
+  sold
+}
+
+model Appointment {
+  id        String   @id @default(cuid())
+  rooftopId String
+  leadId    String?
+  customerId String?
+  repId     String?
+  vehicleId String?
+  scheduledAt DateTime
+  status    ApptStatus @default(set)
+  notes     String?
+  source    String   @default("ai")    // ai | rep | inbound
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rooftop   Rooftop  @relation(fields: [rooftopId], references: [id])
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+  rep       User?    @relation(fields: [repId], references: [id])
+
+  @@index([rooftopId, scheduledAt])
+  @@index([rooftopId, status])
+}
+
+// --- Opportunities (service-to-sales, equity, reactivation) --------------
+
+enum OpportunityKind {
+  equity_upgrade
+  service_drive
+  lease_maturity
+  reactivation
+}
+
+model Opportunity {
+  id        String   @id @default(cuid())
+  rooftopId String
+  customerId String
+  kind      OpportunityKind
+  score     Float    @default(0)
+  expectedGross Float @default(0)
+  matchedVehicleId String?
+  rationale String?  @db.Text
+  expiresAt DateTime?                    // short-lived while car is in service drive
+  worked    Boolean  @default(false)
+  leadId    String?                      // promoted to lead when rep engages
+  createdAt DateTime @default(now())
+
+  rooftop   Rooftop  @relation(fields: [rooftopId], references: [id])
+  customer  Customer @relation(fields: [customerId], references: [id])
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+
+  @@index([rooftopId, score])
+  @@index([rooftopId, kind, worked])
+}
+
+// --- Service ROs ---------------------------------------------------------
+
+model ServiceRO {
+  id        String   @id @default(cuid())
+  rooftopId String
+  customerId String
+  roNumber  String
+  openedAt  DateTime
+  closedAt  DateTime?
+  vehicleYear Int
+  vehicleMake String
+  vehicleModel String
+  mileage   Int?
+  repairTotal Float?
+  createdAt DateTime @default(now())
+
+  rooftop   Rooftop  @relation(fields: [rooftopId], references: [id])
+  customer  Customer @relation(fields: [customerId], references: [id])
+
+  @@index([rooftopId, openedAt])
+}
+
+// --- Rep action feed (Tasks, Recommendations, Alerts) --------------------
+
+enum TaskKind {
+  first_response
+  followup
+  missed_call_recovery
+  service_opp
+  equity_opp
+  reactivation
+  confirm_appointment
+  manual
+}
+
+enum TaskStatus {
+  open
+  snoozed
+  done
+  dismissed
+  escalated
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  rooftopId String
+  userId    String   // assigned rep
+  kind      TaskKind
+  leadId    String?
+  opportunityId String?
+  title     String
+  body      String?  @db.Text
+  dueAt     DateTime?
+  slaAt     DateTime?  // breach threshold (for missed-call, first-response)
+  status    TaskStatus @default(open)
+  priority  Float    @default(0)   // 0..1 — used for feed ranking
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rooftop   Rooftop  @relation(fields: [rooftopId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+
+  @@index([rooftopId, userId, status])
+  @@index([rooftopId, status, priority])
+}
+
+// AI recommendations attached to a task (one "what to do" + draft message)
+model Recommendation {
+  id        String   @id @default(cuid())
+  rooftopId String
+  taskId    String?  @unique
+  userId    String
+  leadId    String?
+  vehicleId String?
+  draftChannel MessageChannel?
+  draftBody String?  @db.Text
+  talkTrack String?  @db.Text   // spoken talk track
+  rationale String?  @db.Text
+  model     String
+  createdAt DateTime @default(now())
+
+  rooftop   Rooftop  @relation(fields: [rooftopId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([rooftopId, userId])
+}
+
+// Manager-facing alerts (SLA breach, missed call escalation, etc.)
+enum AlertKind {
+  sla_breach
+  missed_call_escalation
+  hot_lead_new
+  service_opp_expiring
+  autopilot_error
+}
+
+enum AlertSeverity {
+  info
+  warn
+  critical
+}
+
+model Alert {
+  id        String   @id @default(cuid())
+  rooftopId String
+  forUserId String?  // nullable → manager-level alert
+  kind      AlertKind
+  severity  AlertSeverity @default(warn)
+  title     String
+  body      String?  @db.Text
+  acknowledged Boolean @default(false)
+  entityRef String?  // free-form reference: leadId, callId, opportunityId
+  createdAt DateTime @default(now())
+
+  rooftop   Rooftop  @relation(fields: [rooftopId], references: [id])
+  forUser   User?    @relation("ForUser", fields: [forUserId], references: [id])
+
+  @@index([rooftopId, acknowledged, createdAt])
+}
+
+// --- Scores (denormalized, versioned) ------------------------------------
+
+model Score {
+  id        String   @id @default(cuid())
+  rooftopId String
+  kind      String   // lead_hotness | equity_readiness | service_upgrade
+  subjectType String // lead | customer | opportunity
+  subjectId String
+  value     Float
+  version   String   // e.g., "lead_hotness_v1"
+  details   Json?
+  createdAt DateTime @default(now())
+
+  rooftop   Rooftop  @relation(fields: [rooftopId], references: [id])
+
+  @@index([rooftopId, kind, subjectId])
+}
+
+// --- AI evaluation harness artifacts -------------------------------------
+
+model AiEval {
+  id        String   @id @default(cuid())
+  rooftopId String?
+  task      String   // "draft_first_response" | "summarize_call" | "classify_intent" | ...
+  input     Json
+  output    Json
+  reference Json?
+  judge     Json?    // LLM-as-judge scores
+  model     String
+  latencyMs Int
+  createdAt DateTime @default(now())
+
+  rooftop   Rooftop? @relation(fields: [rooftopId], references: [id])
+
+  @@index([task, createdAt])
+}

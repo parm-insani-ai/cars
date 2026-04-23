@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { height: 100%; background: theme('colors.surface.sub'); color: theme('colors.ink.DEFAULT'); }
+
+.card {
+  @apply bg-white border border-surface-border rounded-lg shadow-sm;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
+}
+.btn-primary { @apply btn bg-ink text-white hover:bg-ink-soft; }
+.btn-secondary { @apply btn bg-white border border-surface-border text-ink hover:bg-surface-sub; }
+.btn-danger   { @apply btn bg-lane-hot text-white hover:opacity-90; }
+
+.chip {
+  @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+}
+.chip-hot  { @apply chip bg-lane-hot/10 text-lane-hot; }
+.chip-warm { @apply chip bg-lane-warm/10 text-lane-warm; }
+.chip-cool { @apply chip bg-lane-cool/10 text-lane-cool; }
+.chip-muted { @apply chip bg-ink-muted/10 text-ink-muted; }
