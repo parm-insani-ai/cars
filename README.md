@@ -25,26 +25,39 @@ Production build passes (`npm run build`). 7/7 unit tests pass.
 
 Prereqs: Node 20+, Docker (for Postgres), an Anthropic API key.
 
+**macOS / Linux / WSL / Git Bash:**
 ```bash
-# One-shot setup: brings up Postgres, pushes schema, generates client, seeds.
 ./scripts/setup.sh
-
-# Add ANTHROPIC_API_KEY to .env.local
-
-# Dev server
+# add ANTHROPIC_API_KEY to .env.local
 npm run dev
+```
 
-# (optional) Inngest dev — runs the durable workflows
+**Windows PowerShell:**
+```powershell
+# If your execution policy blocks scripts, run once:
+#   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\setup.ps1
+# add ANTHROPIC_API_KEY to .env.local
+npm run dev
+```
+
+If you don't have Docker, set `DATABASE_URL` in `.env.local` to any Postgres
+(Neon, Supabase, local) and run the manual flow:
+
+```bash
+npx prisma generate
+npx prisma db push
+npm run db:seed
+npm run dev
+```
+
+(optional) Inngest dev — runs the durable workflows:
+
+```bash
 npx inngest-cli@latest dev
 ```
 
 Open `http://localhost:3000`. The login screen lists the seeded users — pick a sales rep to land on the rep feed, or the sales manager for the dashboard.
-
-If you don't have Docker, set `DATABASE_URL` in `.env.local` to any Postgres (Neon, Supabase, local) and run:
-
-```bash
-npx prisma generate && npx prisma db push && npm run db:seed && npm run dev
-```
 
 ### Seed contents (`Demo Motors`)
 
