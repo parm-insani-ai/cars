@@ -1,31 +1,44 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Sidebar } from "@/components/Sidebar";
+import { Topbar } from "@/components/Topbar";
+import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Revline",
   description: "AI appointment & opportunity engine for dealerships",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+
+  // Login layout has no chrome.
+  if (!user) {
+    return (
+      <html lang="en">
+        <body>
+          <main className="min-h-screen">{children}</main>
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="en">
       <body>
-        <div className="min-h-screen flex flex-col">
-          <header className="border-b border-surface-border bg-white">
-            <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-              <Link href="/" className="font-semibold tracking-tight">
-                Revline
-              </Link>
-              <nav className="flex gap-4 text-sm">
-                <Link href="/rep" className="hover:text-lane">Rep feed</Link>
-                <Link href="/manager" className="hover:text-lane">Manager</Link>
-                <Link href="/service" className="hover:text-lane">Service</Link>
-                <Link href="/settings" className="hover:text-lane">Setup</Link>
-              </nav>
-            </div>
-          </header>
-          <main className="flex-1 max-w-7xl w-full mx-auto p-4">{children}</main>
+        <div className="min-h-screen flex">
+          <Sidebar currentRepId={user.role === "rep" ? user.id : null} />
+          <div className="flex-1 flex flex-col min-w-0">
+            <Topbar
+              user={{
+                id: user.id,
+                name: user.name,
+                role: user.role,
+                rooftop: user.rooftop.name,
+              }}
+            />
+            <main className="flex-1 p-6 max-w-7xl w-full mx-auto">{children}</main>
+          </div>
         </div>
       </body>
     </html>

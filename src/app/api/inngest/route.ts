@@ -4,9 +4,19 @@ import {
   leadCadence,
   missedCallRecovery,
   serviceOppOnROCreated,
+  reactivationDaily,
+  appointmentConfirmation,
+  dailyDigest,
 } from "@/inngest/functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [leadCadence, missedCallRecovery, serviceOppOnROCreated],
+  functions: [
+    leadCadence,
+    missedCallRecovery,
+    serviceOppOnROCreated,
+    reactivationDaily,
+    appointmentConfirmation,
+    dailyDigest,
+  ],
 });

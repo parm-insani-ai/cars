@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: revline
+      POSTGRES_PASSWORD: revline
+      POSTGRES_DB: revline
+    ports:
+      - "5432:5432"
+    volumes:
+      - revline_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U revline -d revline"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  revline_pg:

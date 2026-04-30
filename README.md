@@ -2,118 +2,188 @@
 
 AI appointment and opportunity engine for car dealerships. Prevents sellable opportunities from leaking out of a dealership; measured in incremental sold cars.
 
-See `docs/01-prd-mvp.md` for the product scope and `docs/02-tech-stack.md` for the architecture.
+See `docs/01-prd-mvp.md` for product scope, `docs/02-tech-stack.md` for architecture.
+
+## What's in here
+
+End-to-end web application:
+
+- **Auth** — cookie-based dev session with rep/manager picker (`/login`). WorkOS-ready surface (`requireUser`, `requireRole`).
+- **Sidebar nav + topbar** — every page lives behind auth.
+- **Rep work surface** — feed, lead detail with AI draft composer + appointment booker, missed-call cards, service-drive cards.
+- **Data** — `/leads` (search + status filter), `/customers` with consent toggles + history, `/inventory` grid with body type / condition filters, `/appointments` (today / 7-day) with status transitions.
+- **Manager / ops** — `/manager` live leakage monitor with one-click reassignment, `/reports` (funnel, SLA, attribution, source mix, rep scoreboard), `/onboarding` checklist, `/settings` integration status, `/demo` simulator that fires synthetic webhooks.
+- **AI** — Anthropic SDK, Sonnet 4.6 for drafting, Haiku 4.5 for classification, manual agentic loop with tool use anchored to real Prisma rows, prompt caching on the per-dealer voice prefix, every run writes an `AiEval`.
+- **Workflows (Inngest)** — lead cadence, missed-call recovery (15-min SLA + 10-min escalation), service-drive opportunity, daily reactivation cron, hourly appointment confirmation cron, 6pm manager digest.
+- **Webhooks** — leads (ADF XML or JSON), phone (call events with optional transcript → Haiku summarization), service ROs, inbound SMS (intent classification → status transitions + opt-out enforcement).
+- **Adapters** — `CrmAdapter` / `PhoneAdapter` / `InventoryAdapter` / `SmsAdapter` / `EmailAdapter` interfaces, with Twilio + SendGrid wrappers and mock fallbacks.
+- **Tests** — vitest unit tests for scoring + equity logic.
+
+Production build passes (`npm run build`). 7/7 unit tests pass.
+
+## Run it locally
+
+Prereqs: Node 20+, Docker (for Postgres), an Anthropic API key.
+
+```bash
+# One-shot setup: brings up Postgres, pushes schema, generates client, seeds.
+./scripts/setup.sh
+
+# Add ANTHROPIC_API_KEY to .env.local
+
+# Dev server
+npm run dev
+
+# (optional) Inngest dev — runs the durable workflows
+npx inngest-cli@latest dev
+```
+
+Open `http://localhost:3000`. The login screen lists the seeded users — pick a sales rep to land on the rep feed, or the sales manager for the dashboard.
+
+If you don't have Docker, set `DATABASE_URL` in `.env.local` to any Postgres (Neon, Supabase, local) and run:
+
+```bash
+npx prisma generate && npx prisma db push && npm run db:seed && npm run dev
+```
+
+### Seed contents (`Demo Motors`)
+
+- One sales manager, three reps
+- Seven inventory units (mixed new/used, sedan/suv/truck/EV)
+- Three leads in different states (fresh CarGurus, 90-min-old website, 5-day-old reactivation candidate)
+- One missed sales call with a drafted callback SMS
+- One service-drive customer with $13.5K positive equity → ranked opportunity + matched RAV4
+- One sold appointment for KPI texture
+
+### Demo simulator
+
+`/demo` has four cards that POST against the real webhook endpoints:
+
+- New CarGurus lead (with optional vehicle of interest)
+- Missed sales call
+- Service RO opened (with payoff + value figures that produce a real opportunity)
+- Inbound SMS reply (classifies intent and updates the lead status)
+
+Use it to walk a dealer through the live system without waiting for real events.
 
 ## Structure
 
 ```
 src/
-  app/                 Next.js App Router (UI + API routes)
+  middleware.ts          Auth gate for every non-public route
+  lib/
+    prisma.ts            Prisma singleton
+    auth.ts              getCurrentUser / requireUser / requireRole
+    env.ts               env var helpers
+  app/
+    layout.tsx           Sidebar + topbar shell
+    login/               Login picker (dev SSO)
+    page.tsx             Redirect → rep feed or manager based on role
+    rep/                 Action feed, lead detail
+    leads/               Searchable leads list
+    customers/           Searchable customers + consent
+    inventory/           In-stock grid with filters
+    appointments/        Today / 7-day with status transitions
+    service/             Service-drive opportunities
+    manager/             Live leakage monitor + reassignment
+    reports/             KPI dashboard (funnel, SLA, attribution, sources, rep scoreboard)
+    onboarding/          Setup checklist
+    demo/                Webhook-firing simulator
+    settings/            Integration status + AI voice
     api/
-      webhooks/        Lead intake, phone events, service RO events
-      actions/         Rep actions: send-message, book-appointment, task
-      inngest/         Durable workflow endpoint
-    rep/               Rep action feed + lead detail
-    manager/           Manager leakage dashboard
-    service/           Service-drive opportunity list + detail
-    settings/          Integrations & AI voice config
-  ai/                  Anthropic client, drafts, classification, tool use
-    client.ts          Model selection (Sonnet 4.6 draft, Haiku 4.5 classify)
-    system-prompt.ts   Stable per-dealer prefix (cached)
-    tools.ts           get_inventory_matches, get_customer_history, get_rep_availability
-    run.ts             Manual agentic loop with prompt caching + evals
-    drafts.ts          Task-specific drafters
-    classify.ts        Call summarization, reply intent
+      auth/              login / logout
+      webhooks/          leads | phone | service | sms | inngest
+      actions/           send-message | book-appointment | task | appointment-status
+                          customer-consent | reassign-task
+  ai/
+    client.ts            Model selection (Sonnet 4.6 draft, Haiku 4.5 classify)
+    system-prompt.ts     Stable per-dealer cached prefix
+    tools.ts             get_inventory_matches | get_customer_history | get_rep_availability
+    run.ts               Manual agentic loop with prompt caching + AiEval logging
+    drafts.ts            First response | follow-up | missed-call | service-to-sales
+    classify.ts          Call summarization | reply intent
   domain/
-    leads.ts           Lead ingest + assignment
-    scoring.ts         Lead hotness, equity readiness, expected gross
-    opportunities.ts   Service-to-sales pipeline
-    feed.ts            Rep & manager feed ranking
-  inngest/             Durable workflows
+    leads.ts             Ingest + assignment
+    scoring.ts           Lead hotness, equity readiness, expected gross
+    scoring.test.ts      Vitest unit tests
+    opportunities.ts     Service-to-sales pipeline
+    feed.ts              Rep + manager feed ranking
+  inngest/
+    client.ts            Event taxonomy
     functions/
-      lead-cadence.ts          Instant response + nudges
-      missed-call-recovery.ts  2-min draft, 15-min SLA, 10-min escalate
-      service-opp.ts           Score + match + draft pitch
+      lead-cadence.ts            Instant response + nudges (1h/24h/3d)
+      missed-call-recovery.ts    Draft + 15-min SLA + 10-min escalation
+      service-opp.ts             Score + match + draft pitch
+      reactivation.ts            Daily cron — dead leads 30-90d ago
+      appointment-confirmation.ts Hourly cron — day-before reminders
+      daily-digest.ts            6pm rooftop-local manager digest
   integrations/
-    adapters.ts        CrmAdapter / PhoneAdapter / InventoryAdapter / SmsAdapter / EmailAdapter
-    twilio.ts, sendgrid.ts, mock.ts
-    adf.ts             Minimal ADF/XML lead parser
+    adapters.ts          Adapter interfaces
+    twilio.ts | sendgrid.ts | mock.ts
+    adf.ts               ADF/XML lead parser
+  components/
+    Sidebar.tsx | Topbar.tsx | FeedCard.tsx
+    SendComposer.tsx | AppointmentBooker.tsx | ReassignButton.tsx
+
 prisma/
-  schema.prisma        Full multi-tenant data model
-  seed.ts              Demo rooftop with leads, calls, service ROs
+  schema.prisma          Multi-tenant data model
+  seed.ts                Demo Motors
+
+docker-compose.yml       Postgres for dev
+scripts/setup.sh         One-shot setup
 ```
 
-## Running locally
+## Flows (how the wiring fires)
 
-Prereqs: Node 20+, Postgres 15+ (or use Neon/Supabase), an Anthropic API key.
-
-```bash
-# 1. Install
-npm install
-
-# 2. Environment
-cp .env.example .env.local
-# Fill in DATABASE_URL and ANTHROPIC_API_KEY at minimum.
-# Twilio / SendGrid are optional — without them, send actions go through mock adapters.
-
-# 3. Database
-npx prisma generate
-npx prisma db push
-npm run db:seed
-
-# 4. Dev server
-npm run dev
-
-# 5. (optional) Inngest dev — triggers workflows on webhook events
-npx inngest-cli@latest dev
-```
-
-Open `http://localhost:3000`. The seed script creates:
-- **Demo Motors** rooftop (LA timezone)
-- One sales manager, three reps
-- Seven inventory units
-- Three leads in different states (fresh CarGurus, 90-min-old website, 5-day-old reactivation)
-- One missed sales call with a drafted callback SMS
-- One service-drive customer with $13.5K positive equity → ranked opportunity + matched vehicle
-
-## The flows
-
-### New lead
+### New lead → appointment
 1. `POST /api/webhooks/leads` (ADF email or provider JSON)
-2. `ingestLead` — dedupe customer, assign rep (round-robin), score hotness
-3. Inngest `lead/created` fires → `leadCadence` function
-4. Workflow drafts first-response SMS (Sonnet 4.6 + tool use) → rep feed card with SLA 5 min
-5. Rep approves → `POST /api/actions/send-message` → Twilio + CRM writeback + task done
+2. `ingestLead` — dedupe customer (phone, then email), assign rep round-robin by lowest open-task load, score hotness
+3. Inngest `lead/created` → `lead-cadence` workflow → first-response draft (Sonnet 4.6 + tool use)
+4. Recommendation written to a task with 5-min SLA on the rep's feed
+5. Rep reviews on `/rep/lead/[id]`, hits "Approve & send" → `POST /api/actions/send-message` → TCPA check → Twilio (or mock) → message + lead status updated
+6. Customer replies → `POST /api/webhooks/sms` → Haiku classifies intent → if proposed time, opens "confirm appointment" task; if opt-out, revokes consent + marks lead lost
+7. Rep books on the lead detail page → appointment + customer tagged `revline_influenced`
+8. Inngest hourly cron sends day-before confirmation tasks
 
 ### Missed sales call
 1. Phone provider `POST /api/webhooks/phone`
-2. Call logged; if `outcome=missed, direction=inbound, department=sales` → Inngest `call/missed`
-3. Workflow drafts callback SMS, creates task with 15-min SLA
-4. After 10 min, if open → task escalated + manager alert
+2. Call logged; transcript (if any) summarized via Haiku
+3. If `outcome=missed, direction=inbound, department=sales` → Inngest `call/missed`
+4. Workflow drafts callback SMS (Sonnet 4.6) → 15-min SLA task + recommendation
+5. After 10 min still open → task escalated + manager alert
 
 ### Service drive
 1. DMS/CRM `POST /api/webhooks/service` (RO created)
-2. `processServiceDrive` scores equity (ownership age, mileage, equity position, recent service spend)
-3. If ≥ 0.35 and matching inventory exists → opportunity + 4-hour-expiring rep task
-4. AI drafts talk track + SMS follow-up (rep sees both)
+2. `processServiceDrive` scores equity (ownership age, mileage, equity $, recent service spend)
+3. If ≥ 0.35 with matching inventory → opportunity + 4-hour-expiring rep task
+4. AI drafts in-person talk track + SMS follow-up (rep sees both side-by-side)
+
+### Reactivation
+- Daily cron at 7am (rooftop time): scan leads created 30-90 days ago in `lost` or `dead`, create reactivation tasks at low priority. Drafted lazily when the rep opens the card.
 
 ## AI layer notes
 
-- **Prompt caching** — the dealership system prompt (SOPs, voice, compliance) is the frozen prefix with `cache_control: ephemeral`. Tools render before system, so one marker caches tools + system together. Per-request customer facts go in the user message, after the breakpoint.
-- **Tool use** — the model cannot invent inventory, prices, or customer facts. It must call `get_inventory_matches` / `get_customer_history` / `get_rep_availability`.
-- **Human in the loop** — every outbound message is rep-approved in MVP. Autopilot is opt-in (`ALLOW_AUTOPILOT_SEND`) and gated per rep.
-- **Evals** — every AI run writes an `AiEval` row (input, output, tool calls, latency). Point an offline scorer at this table in CI.
+- **Prompt caching** — the per-dealer voice + SOP prefix is the cached portion (`cache_control: { type: "ephemeral" }` on the system block). Tools render before system, so one breakpoint caches tools + system together. Per-request facts go in the user message, after the breakpoint.
+- **Tool use** — the model cannot invent inventory, prices, or customer facts. Every drafter forces a tool call against real Prisma rows: `get_inventory_matches` / `get_customer_history` / `get_rep_availability`.
+- **Human in the loop** — every outbound message is rep-approved in MVP. Autopilot is opt-in (`ALLOW_AUTOPILOT_SEND`).
+- **Evals** — every AI run writes an `AiEval` row with input, output, tool calls, latency. Wire Braintrust at this table.
 
-## What's faked vs real in the MVP
+## Known gaps before a real pilot
 
-| Real                                                             | Faked / mocked                                                                 |
-|------------------------------------------------------------------|--------------------------------------------------------------------------------|
-| Next.js app + routes                                             | Auth (no WorkOS wiring — userId passed in request bodies)                      |
-| Prisma schema & ranking                                          | RLS (enable on Postgres; we set the tenant column on every row)                |
-| Anthropic SDK w/ tool use + prompt caching                       | No Braintrust hookup yet (AiEval rows ready to feed it)                        |
-| Inngest workflows (durable cadence, missed-call SLA, service opp)| Real CRM / phone / inventory / Twilio writes default to mock adapters          |
-| ADF XML intake + JSON webhook                                    | Rep calendar — slot suggestions are deterministic next-business-day placeholders |
+- **WorkOS SSO** — surface is ready (`requireUser` reads a cookie). Swap for WorkOS when it's procured.
+- **Postgres RLS** — every row has `rooftopId`; the policies aren't applied yet.
+- **Real CRM/phone connectors** — interfaces and mocks. Pick one CRM (VinSolutions) and one phone (CallRevu/Car Wars/Dialpad) for pilot #1.
+- **Webhook signature verification** — endpoints are open. Add HMAC checks per provider.
+- **Real rep calendars** — `get_rep_availability` returns deterministic next-business-day slots. Wire to CRM/calendar before pilot.
+- **Inbound SMS provider verification** — Twilio inbound webhook signing.
+- **Eval scoring** — `AiEval` rows are written but no scorer is wired (Braintrust is the recommendation).
 
-## Deploy
+These are sequenced in the build plan in `docs/02-tech-stack.md`.
 
-Next.js → Vercel. Postgres → Neon. Inngest → Inngest Cloud. WorkOS for SSO. See `docs/02-tech-stack.md` for the full topology and why each piece is the right pick.
+## Test, typecheck, build
+
+```bash
+npm test            # 7 unit tests for scoring + equity
+npm run typecheck   # tsc --noEmit
+npm run build       # Next.js production build (passes)
+```
