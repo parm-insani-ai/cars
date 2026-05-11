@@ -5,15 +5,11 @@ import { formatDistanceToNowStrict } from "date-fns";
 
 export const dynamic = "force-dynamic";
 
-export default async function CustomersPage({
-  searchParams,
-}: {
-  searchParams?: { q?: string };
-}) {
+export default async function CustomersPage({ searchParams }: { searchParams?: { q?: string } }) {
   const user = await requireUser();
   const q = (searchParams?.q ?? "").trim();
 
-  const where: any = { rooftopId: user.rooftopId };
+  const where: any = { businessId: user.businessId };
   if (q) {
     where.OR = [
       { firstName: { contains: q, mode: "insensitive" } },
@@ -25,10 +21,7 @@ export default async function CustomersPage({
 
   const customers = await prisma.customer.findMany({
     where,
-    include: {
-      _count: { select: { leads: true, opportunities: true } },
-      vehiclesOwned: { take: 1, orderBy: { purchaseDate: "desc" } },
-    },
+    include: { _count: { select: { appointments: true, callSessions: true } } },
     orderBy: [{ updatedAt: "desc" }],
     take: 100,
   });
@@ -36,6 +29,7 @@ export default async function CustomersPage({
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Customers</h1>
+
       <form className="flex gap-2">
         <input
           name="q"
@@ -52,21 +46,18 @@ export default async function CustomersPage({
             <tr>
               <th className="text-left p-3">Name</th>
               <th className="text-left p-3">Contact</th>
-              <th className="text-left p-3">Drives</th>
               <th className="text-left p-3">Consent</th>
-              <th className="text-right p-3">Leads</th>
-              <th className="text-right p-3">Opps</th>
-              <th className="text-left p-3">Last contact</th>
+              <th className="text-right p-3">Appts</th>
+              <th className="text-right p-3">Calls</th>
+              <th className="text-left p-3">Updated</th>
             </tr>
           </thead>
           <tbody>
             {customers.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="p-6 text-center text-ink-muted">No customers match.</td>
-              </tr>
+              <tr><td colSpan={6} className="p-6 text-center text-ink-muted">No customers match.</td></tr>
             ) : (
-              customers.map((c) => (
-                <tr key={c.id} className="border-t border-surface-border">
+              customers.map(c => (
+                <tr key={c.id} className="border-t border-surface-border hover:bg-surface-sub/60">
                   <td className="p-3">
                     <Link href={`/customers/${c.id}`} className="text-lane hover:underline">
                       {c.firstName ?? ""} {c.lastName ?? "(no name)"}
@@ -76,23 +67,12 @@ export default async function CustomersPage({
                     <div className="text-xs">{c.phone ?? "—"}</div>
                     <div className="text-xs text-ink-muted">{c.email ?? "—"}</div>
                   </td>
-                  <td className="p-3">
-                    {c.vehiclesOwned[0]
-                      ? `${c.vehiclesOwned[0].year} ${c.vehiclesOwned[0].make} ${c.vehiclesOwned[0].model}`
-                      : <span className="text-ink-muted">—</span>}
-                  </td>
                   <td className="p-3 text-xs">
-                    <span className={c.smsConsent ? "chip-cool" : "chip-muted"}>
-                      SMS {c.smsConsent ? "yes" : "no"}
-                    </span>
+                    <span className={c.smsConsent ? "chip-cool" : "chip-muted"}>SMS {c.smsConsent ? "yes" : "no"}</span>
                   </td>
-                  <td className="p-3 text-right tabular-nums">{c._count.leads}</td>
-                  <td className="p-3 text-right tabular-nums">{c._count.opportunities}</td>
-                  <td className="p-3 text-ink-muted">
-                    {c.lastContactAt
-                      ? formatDistanceToNowStrict(c.lastContactAt, { addSuffix: true })
-                      : "—"}
-                  </td>
+                  <td className="p-3 text-right tabular-nums">{c._count.appointments}</td>
+                  <td className="p-3 text-right tabular-nums">{c._count.callSessions}</td>
+                  <td className="p-3 text-ink-muted">{formatDistanceToNowStrict(c.updatedAt, { addSuffix: true })}</td>
                 </tr>
               ))
             )}

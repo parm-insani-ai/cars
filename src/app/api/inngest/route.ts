@@ -1,22 +1,12 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/inngest/client";
 import {
-  leadCadence,
-  missedCallRecovery,
-  serviceOppOnROCreated,
-  reactivationDaily,
-  appointmentConfirmation,
-  dailyDigest,
+  postCallFollowup,
+  followUpDispatcher,
+  noShowDetection,
 } from "@/inngest/functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [
-    leadCadence,
-    missedCallRecovery,
-    serviceOppOnROCreated,
-    reactivationDaily,
-    appointmentConfirmation,
-    dailyDigest,
-  ],
+  functions: [postCallFollowup, followUpDispatcher, noShowDetection],
 });

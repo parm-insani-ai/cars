@@ -5,10 +5,9 @@ const PUBLIC_PATHS = [
   "/login",
   "/api/auth/login",
   "/api/auth/logout",
-  "/api/webhooks/leads",
-  "/api/webhooks/phone",
-  "/api/webhooks/service",
-  "/api/webhooks/sms",
+  "/api/voice/llm",
+  "/api/voice/webhook",
+  "/api/voice/simulate",
   "/api/inngest",
 ];
 
@@ -18,7 +17,7 @@ export function middleware(req: NextRequest) {
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
-    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))
+    PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + "/"))
   ) {
     return NextResponse.next();
   }

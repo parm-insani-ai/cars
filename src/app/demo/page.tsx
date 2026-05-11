@@ -1,32 +1,27 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { DemoSimulator } from "./DemoSimulator";
+import { DemoChat } from "./DemoChat";
 
 export const dynamic = "force-dynamic";
 
 export default async function DemoPage() {
   const user = await requireUser();
-  const inventory = await prisma.vehicle.findMany({
-    where: { rooftopId: user.rooftopId, status: "in_stock" },
-    take: 10,
-    orderBy: { createdAt: "desc" },
+  const business = await prisma.business.findUnique({
+    where: { id: user.businessId },
+    include: { agentConfig: true },
   });
+  if (!business || !business.agentConfig) return <div>Agent not configured.</div>;
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-4 max-w-2xl">
       <div>
         <h1 className="text-xl font-semibold">Demo simulator</h1>
-        <p className="text-sm text-ink-muted">
-          Fire synthetic webhook events at the dev instance. Useful for showing the product to a dealer before the real connectors are live.
+        <p className="text-xs text-ink-muted">
+          Have a text-mode conversation with your voice agent. Same brain, same tools — just no audio. Use it to test prompt
+          changes, knowledge base updates, or to demo to a customer before the phone number is live.
         </p>
       </div>
-      <DemoSimulator
-        rooftopId={user.rooftopId}
-        sampleStockNumbers={inventory.map((v) => ({
-          stockNumber: v.stockNumber,
-          label: `${v.year} ${v.make} ${v.model}`,
-        }))}
-      />
+      <DemoChat businessId={business.id} greeting={business.agentConfig.greeting} businessName={business.name} />
     </div>
   );
 }

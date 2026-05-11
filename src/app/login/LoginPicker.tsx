@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type U = { id: string; name: string; role: string; rooftop: string };
+type U = { id: string; name: string; role: string; business: string; vertical: string };
 
 export function LoginPicker({ users }: { users: U[] }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -18,19 +18,14 @@ export function LoginPicker({ users }: { users: U[] }) {
     });
     setBusy(null);
     if (res.ok) {
-      const next =
-        users.find((u) => u.id === id)?.role === "sales_manager" ||
-        users.find((u) => u.id === id)?.role === "gm"
-          ? "/manager"
-          : `/rep/${id}`;
-      router.push(next);
+      router.push("/calls");
       router.refresh();
     }
   }
 
   return (
     <div className="space-y-2">
-      {users.map((u) => (
+      {users.map(u => (
         <button
           key={u.id}
           onClick={() => pick(u.id)}
@@ -40,22 +35,12 @@ export function LoginPicker({ users }: { users: U[] }) {
           <div>
             <div className="font-medium">{u.name}</div>
             <div className="text-xs text-ink-muted">
-              {roleLabel[u.role] ?? u.role} · {u.rooftop}
+              {u.role} · {u.business} ({u.vertical.replace("_", " ")})
             </div>
           </div>
-          <span className="text-xs text-ink-muted">
-            {busy === u.id ? "Signing in…" : "→"}
-          </span>
+          <span className="text-xs text-ink-muted">{busy === u.id ? "Signing in…" : "→"}</span>
         </button>
       ))}
     </div>
   );
 }
-
-const roleLabel: Record<string, string> = {
-  rep: "Sales rep",
-  bdc: "BDC",
-  sales_manager: "Sales manager",
-  gm: "GM",
-  admin: "Admin",
-};

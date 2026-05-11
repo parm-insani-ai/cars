@@ -3,25 +3,21 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const NEXT_OPTIONS: Record<string, Array<{ label: string; status: string }>> = {
-  set: [
-    { label: "Confirm", status: "confirmed" },
-    { label: "Cancel", status: "canceled" },
-  ],
-  confirmed: [
-    { label: "Mark shown", status: "shown" },
-    { label: "No-show", status: "no_show" },
-  ],
-  shown: [{ label: "Mark sold", status: "sold" }],
+const NEXT: Record<string, Array<{ label: string; status: string }>> = {
+  pending: [{ label: "Confirm", status: "confirmed" }, { label: "Cancel", status: "canceled" }],
+  confirmed: [{ label: "Mark arrived", status: "arrived" }, { label: "No-show", status: "no_show" }, { label: "Cancel", status: "canceled" }],
+  reminded: [{ label: "Mark arrived", status: "arrived" }, { label: "No-show", status: "no_show" }],
+  arrived: [{ label: "Mark completed", status: "completed" }],
   no_show: [],
   canceled: [],
-  sold: [],
+  completed: [],
+  rescheduled: [],
 };
 
 export function ApptStatusButtons({ apptId, status }: { apptId: string; status: string }) {
   const [busy, setBusy] = useState(false);
   const router = useRouter();
-  const opts = NEXT_OPTIONS[status] ?? [];
+  const opts = NEXT[status] ?? [];
 
   async function update(newStatus: string) {
     setBusy(true);
@@ -37,13 +33,8 @@ export function ApptStatusButtons({ apptId, status }: { apptId: string; status: 
   if (opts.length === 0) return null;
   return (
     <div className="flex gap-1">
-      {opts.map((o) => (
-        <button
-          key={o.status}
-          className="btn-secondary"
-          disabled={busy}
-          onClick={() => update(o.status)}
-        >
+      {opts.map(o => (
+        <button key={o.status} className="btn-secondary" disabled={busy} onClick={() => update(o.status)}>
           {o.label}
         </button>
       ))}

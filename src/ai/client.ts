@@ -8,9 +8,10 @@ export function anthropic(): Anthropic {
   return client;
 }
 
+// Model picks. The agent brain runs on Sonnet 4.6 — high-volume, low latency,
+// strong tool-use. Classification/summarization runs on Haiku 4.5.
 export const MODELS = {
-  draft: "claude-sonnet-4-6",
+  brain: "claude-sonnet-4-6",
   summarize: "claude-sonnet-4-6",
   classify: "claude-haiku-4-5",
-  score: "claude-haiku-4-5",
 } as const;

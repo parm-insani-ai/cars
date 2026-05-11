@@ -1,14 +1,13 @@
 import { Inngest } from "inngest";
 
 export const inngest = new Inngest({
-  id: "revline",
-  // Event taxonomy. Extend as needed — keep names stable.
+  id: "frontdesk",
 });
 
 export type Events = {
-  "lead/created": { data: { leadId: string } };
-  "lead/reply.received": { data: { leadId: string; messageId: string } };
-  "call/missed": { data: { callId: string } };
-  "service-ro/created": { data: { serviceROId: string } };
-  "task/escalate": { data: { taskId: string } };
+  "call/ended": { data: { callSessionId: string } };
+  "call/missed": { data: { callSessionId: string } };
+  "appointment/booked": { data: { appointmentId: string } };
+  "appointment/no_show": { data: { appointmentId: string } };
+  "followup/scheduled": { data: { followUpId: string } };
 };

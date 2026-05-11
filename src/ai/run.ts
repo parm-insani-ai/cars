@@ -1,125 +1,161 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { anthropic, MODELS } from "./client";
-import { AI_TOOLS, executeTool } from "./tools";
-import { buildDealerSystemPrompt } from "./system-prompt";
-import type { Rooftop } from "@prisma/client";
+import { buildAgentSystemPrompt, type SystemContext } from "./system-prompt";
+import { getToolSchemas } from "./tools";
+import {
+  anthropicToolsToOpenAI,
+  anthropicToOpenAIResponse,
+  openAIToAnthropic,
+  type OpenAIRequest,
+} from "./openai-translate";
 import { prisma } from "@/lib/prisma";
+import type Anthropic from "@anthropic-ai/sdk";
 
-type Rooftopish = Pick<Rooftop, "id" | "name" | "voiceProfile" | "consentTemplate" | "timezone">;
+// One turn of the voice conversation. Called by Vapi via our OpenAI-compatible
+// LLM endpoint. Vapi sends the message history; we route through Anthropic and
+// return an OpenAI response shape.
+//
+// Cache: the system prompt is the stable per-business prefix.
 
-export type DraftRunInput = {
-  rooftop: Rooftopish;
-  task: "draft_first_response" | "draft_followup" | "draft_missed_call_sms" | "draft_service_pitch";
-  // The model sees this user message. Include real records (customer, source,
-  // vehicle of interest) as structured facts — NOT as free-form history.
-  userMessage: string;
-  maxIterations?: number;
-};
-
-export type DraftRunResult = {
-  finalText: string;
-  toolCalls: Array<{ name: string; input: unknown; output: string; error: boolean }>;
-  usage: { input: number; output: number; cacheRead: number; cacheCreate: number };
-  stopReason: string | null;
-  latencyMs: number;
-};
-
-// Manual agentic loop so we can log tool calls, write AiEval records, and keep
-// control of prompt caching. The cached prefix is `system` (frozen per rooftop)
-// plus `tools` (deterministic order) — see shared/prompt-caching.md.
-export async function runDraft(input: DraftRunInput): Promise<DraftRunResult> {
+export async function runAgentTurn(args: {
+  businessId: string;
+  callSessionId: string;
+  // Caller info from Vapi metadata
+  callerPhone?: string;
+  openaiRequest: OpenAIRequest;
+}) {
   const t0 = Date.now();
+
+  const business = await prisma.business.findUnique({
+    where: { id: args.businessId },
+    include: { agentConfig: true, hours: true, services: { where: { active: true } }, providers: { where: { active: true } }, knowledge: true },
+  });
+  if (!business) throw new Error("business_not_found");
+  if (!business.agentConfig) throw new Error("agent_config_missing");
+
+  const ctx: SystemContext = {
+    business,
+    agent: business.agentConfig,
+    hours: business.hours,
+    services: business.services,
+    providers: business.providers.map(p => ({ id: p.id, name: p.name, kind: p.kind })),
+    knowledge: business.knowledge.map(k => ({ title: k.title, body: k.body })),
+  };
+  const systemPrompt = buildAgentSystemPrompt(ctx);
+
+  const anthropicTools = getToolSchemas({
+    canBook: business.agentConfig.canBook,
+    canReschedule: business.agentConfig.canReschedule,
+    canCancel: business.agentConfig.canCancel,
+    canTransfer: business.agentConfig.canTransfer,
+    vertical: business.vertical,
+  });
+  const openaiTools = anthropicToolsToOpenAI(anthropicTools);
+
+  // Vapi sends its own system message; we override with our built prompt and
+  // pass through user/assistant/tool turns.
+  const { messages: priorMessages } = openAIToAnthropic(args.openaiRequest.messages);
+
   const client = anthropic();
-  const system = buildDealerSystemPrompt(input.rooftop);
+  const resp = await client.messages.create({
+    model: MODELS.brain,
+    max_tokens: 512,
+    // Cache the system prefix per business — it doesn't change across turns
+    // within a call, or between calls (until config changes).
+    system: [
+      {
+        type: "text",
+        text: systemPrompt,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: anthropicTools,
+    messages: priorMessages,
+  });
 
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: input.userMessage }];
-  const toolCalls: DraftRunResult["toolCalls"] = [];
-  let usage = { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
-  let stopReason: string | null = null;
-  let finalText = "";
+  const openaiResp = anthropicToOpenAIResponse(resp, args.openaiRequest.model ?? "frontdesk-agent");
 
-  const maxIter = input.maxIterations ?? 4;
-  for (let i = 0; i < maxIter; i++) {
-    const resp = await client.messages.create({
-      model: MODELS.draft,
-      max_tokens: 1024,
-      // cache_control on the system prompt caches tools + system together (tools
-      // render before system). The prefix is byte-stable per rooftop.
-      system: [
-        {
-          type: "text",
-          text: system,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      tools: AI_TOOLS,
-      messages,
+  // Log: persist turn text + AI eval row. We do NOT call tools here — Vapi
+  // dispatches tool calls back to /api/voice/tools/* via our endpoints.
+  const assistantText = openaiResp.choices[0].message.content ?? "";
+  if (assistantText) {
+    await prisma.callTurn.create({
+      data: {
+        sessionId: args.callSessionId,
+        role: "agent",
+        text: assistantText,
+      },
     });
-
-    usage.input += resp.usage.input_tokens ?? 0;
-    usage.output += resp.usage.output_tokens ?? 0;
-    usage.cacheRead += resp.usage.cache_read_input_tokens ?? 0;
-    usage.cacheCreate += resp.usage.cache_creation_input_tokens ?? 0;
-    stopReason = resp.stop_reason;
-
-    if (resp.stop_reason === "end_turn" || resp.stop_reason === "stop_sequence") {
-      finalText = resp.content
-        .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join("\n")
-        .trim();
-      break;
-    }
-
-    if (resp.stop_reason !== "tool_use") {
-      // refusal, max_tokens, etc. — bail with whatever text we got.
-      finalText = resp.content
-        .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join("\n")
-        .trim();
-      break;
-    }
-
-    messages.push({ role: "assistant", content: resp.content });
-
-    const toolUses = resp.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-    for (const use of toolUses) {
-      const result = await executeTool(input.rooftop.id, use.name, use.input);
-      toolCalls.push({
-        name: use.name,
-        input: use.input,
-        output: result.content,
-        error: Boolean(result.is_error),
-      });
-      toolResults.push({
-        type: "tool_result",
-        tool_use_id: use.id,
-        content: result.content,
-        is_error: result.is_error,
-      });
-    }
-
-    messages.push({ role: "user", content: toolResults });
   }
 
   const latencyMs = Date.now() - t0;
+  await prisma.aiEval.create({
+    data: {
+      businessId: args.businessId,
+      task: "agent_turn",
+      input: { messages: args.openaiRequest.messages } as any,
+      output: openaiResp as any,
+      model: MODELS.brain,
+      latencyMs,
+      inputTokens: resp.usage.input_tokens,
+      outputTokens: resp.usage.output_tokens,
+      cacheReadTokens: resp.usage.cache_read_input_tokens ?? 0,
+      cacheCreationTokens: resp.usage.cache_creation_input_tokens ?? 0,
+    },
+  }).catch(() => undefined);
 
-  // Best-effort eval record. Never blocks the caller.
-  prisma.aiEval
-    .create({
+  // Tool calls also get logged as turns (so the transcript shows the action).
+  for (const block of resp.content) {
+    if (block.type === "tool_use") {
+      await prisma.callTurn.create({
+        data: {
+          sessionId: args.callSessionId,
+          role: "tool",
+          text: `→ ${block.name}(${JSON.stringify(block.input)})`,
+        },
+      });
+    }
+  }
+
+  return openaiResp;
+}
+
+// Summarize a finished call: 1-paragraph summary + outcome reclassification.
+// Run from the end-of-call webhook.
+export async function summarizeCall(callSessionId: string) {
+  const session = await prisma.callSession.findUnique({
+    where: { id: callSessionId },
+    include: { turns: { orderBy: { startedAt: "asc" } }, business: true },
+  });
+  if (!session) return;
+  const transcript = session.turns
+    .filter(t => t.role !== "tool")
+    .map(t => `${t.role.toUpperCase()}: ${t.text}`)
+    .join("\n");
+  if (!transcript) return;
+
+  const client = anthropic();
+  const resp = await client.messages.create({
+    model: MODELS.summarize,
+    max_tokens: 300,
+    system: `You summarize voice receptionist calls for ${session.business.name}. Output ONLY JSON: {"summary": "...", "outcome": "booked"|"rescheduled"|"canceled"|"message_taken"|"transferred"|"no_action"|"voicemail"|"hung_up"}. Summary is one paragraph under 60 words.`,
+    messages: [{ role: "user", content: transcript }],
+  });
+  const text = resp.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map(b => b.text)
+    .join("");
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return;
+  try {
+    const j = JSON.parse(match[0]);
+    await prisma.callSession.update({
+      where: { id: callSessionId },
       data: {
-        rooftopId: input.rooftop.id,
-        task: input.task,
-        input: { userMessage: input.userMessage } as any,
-        output: { text: finalText, toolCalls } as any,
-        model: MODELS.draft,
-        latencyMs,
+        summary: String(j.summary ?? "").slice(0, 1000),
+        outcome: ["booked","rescheduled","canceled","message_taken","transferred","no_action","voicemail","hung_up"].includes(j.outcome)
+          ? j.outcome
+          : session.outcome,
       },
-    })
-    .catch(() => undefined);
-
-  return { finalText, toolCalls, usage, stopReason, latencyMs };
+    });
+  } catch { /* ignore */ }
 }

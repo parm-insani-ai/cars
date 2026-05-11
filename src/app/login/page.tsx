@@ -6,15 +6,15 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage() {
   const users = await prisma.user.findMany({
     where: { active: true },
-    include: { rooftop: true },
-    orderBy: [{ role: "asc" }, { name: "asc" }],
+    include: { business: true },
+    orderBy: [{ business: { name: "asc" } }, { role: "asc" }, { name: "asc" }],
   });
 
   return (
     <div className="max-w-md mx-auto py-12 space-y-6">
       <div className="card p-6 space-y-4">
         <div>
-          <h1 className="text-xl font-semibold">Sign in</h1>
+          <h1 className="text-xl font-semibold">Sign in to Frontdesk</h1>
           <p className="text-sm text-ink-muted mt-1">
             Dev mode — pick a user. In production this would be WorkOS SSO.
           </p>
@@ -25,11 +25,12 @@ export default async function LoginPage() {
           </p>
         ) : (
           <LoginPicker
-            users={users.map((u) => ({
+            users={users.map(u => ({
               id: u.id,
               name: u.name,
               role: u.role,
-              rooftop: u.rooftop.name,
+              business: u.business.name,
+              vertical: u.business.vertical,
             }))}
           />
         )}
