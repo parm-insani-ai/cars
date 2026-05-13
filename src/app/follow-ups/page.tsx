@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { formatDistanceToNowStrict } from "date-fns";
+import { followUpKindLabel, followUpStatusChip, chipClass, humanize } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
@@ -10,55 +11,60 @@ export default async function FollowUpsPage({ searchParams }: { searchParams?: {
   const where: any = { businessId: user.businessId };
   if (status !== "all") where.status = status;
 
-  const follow = await prisma.followUp.findMany({
+  const items = await prisma.followUp.findMany({
     where,
     orderBy: { scheduledFor: "asc" },
-    include: { },
     take: 100,
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between">
-        <h1 className="text-xl font-semibold">Follow-ups</h1>
-        <div className="flex gap-2">
-          {["scheduled", "sent", "failed", "skipped", "all"].map(s => (
-            <a key={s} href={`/follow-ups?status=${s}`} className={status === s ? "btn-primary" : "btn-secondary"}>
-              {s}
-            </a>
-          ))}
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="page-title">Follow-ups</h1>
+        <p className="page-sub">
+          Outbound reminders and follow-up messages the agent has scheduled. They go out automatically on time.
+        </p>
       </div>
+
+      <div className="flex flex-wrap gap-2 text-sm">
+        {["scheduled", "sent", "failed", "skipped", "all"].map(s => (
+          <a key={s} href={`/follow-ups?status=${s}`} className={status === s ? "btn-primary" : "btn-secondary"}>
+            {humanize(s)}
+          </a>
+        ))}
+      </div>
+
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-sub text-ink-muted text-xs uppercase tracking-wider">
-            <tr>
-              <th className="text-left p-3">Kind</th>
-              <th className="text-left p-3">Channel</th>
-              <th className="text-left p-3">Scheduled</th>
-              <th className="text-left p-3">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {follow.length === 0 ? (
-              <tr><td colSpan={4} className="p-6 text-center text-ink-muted">None.</td></tr>
-            ) : follow.map(f => (
-              <tr key={f.id} className="border-t border-surface-border">
-                <td className="p-3">{f.kind.replace(/_/g, " ")}</td>
-                <td className="p-3 text-xs">{f.channel}</td>
-                <td className="p-3 text-xs text-ink-muted">{formatDistanceToNowStrict(f.scheduledFor, { addSuffix: true })}</td>
-                <td className="p-3">
-                  <span className={
-                    f.status === "sent" ? "chip-cool" :
-                    f.status === "failed" ? "chip-hot" :
-                    f.status === "scheduled" ? "chip-warm" : "chip-muted"
-                  }>{f.status}</span>
-                  {f.errorMessage && <div className="text-xs text-lane-hot mt-0.5">{f.errorMessage}</div>}
-                </td>
+        {items.length === 0 ? (
+          <div className="empty">
+            <div className="empty-title">Nothing here</div>
+            <div className="empty-sub">When the agent books appointments or takes messages, you'll see reminders queue up here.</div>
+          </div>
+        ) : (
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Kind</th>
+                <th>Channel</th>
+                <th>Scheduled</th>
+                <th>Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map(f => (
+                <tr key={f.id}>
+                  <td>{followUpKindLabel[f.kind] ?? humanize(f.kind)}</td>
+                  <td className="text-xs capitalize">{f.channel}</td>
+                  <td className="text-xs text-ink-muted">{formatDistanceToNowStrict(f.scheduledFor, { addSuffix: true })}</td>
+                  <td>
+                    <span className={chipClass(followUpStatusChip[f.status])}>{humanize(f.status)}</span>
+                    {f.errorMessage && <div className="text-xs text-lane-hot mt-0.5">{f.errorMessage}</div>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

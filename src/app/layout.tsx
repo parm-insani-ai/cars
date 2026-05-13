@@ -3,10 +3,11 @@ import type { Metadata } from "next";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { getCurrentUser } from "@/lib/auth";
+import { setupComplete } from "@/lib/integrations";
 
 export const metadata: Metadata = {
-  title: "Frontdesk",
-  description: "Voice AI receptionist for small businesses",
+  title: "Frontdesk — Voice AI receptionist",
+  description: "Your AI receptionist answers, books appointments, and follows up.",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -24,7 +25,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body>
         <div className="min-h-screen flex">
-          <Sidebar />
+          <Sidebar setupComplete={setupComplete()} />
           <div className="flex-1 flex flex-col min-w-0">
             <Topbar
               user={{
@@ -34,7 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 vertical: user.business.vertical,
               }}
             />
-            <main className="flex-1 p-6 max-w-7xl w-full mx-auto">{children}</main>
+            <main className="flex-1 p-8 max-w-7xl w-full mx-auto">{children}</main>
           </div>
         </div>
       </body>

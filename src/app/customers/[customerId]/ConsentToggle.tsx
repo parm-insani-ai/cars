@@ -23,17 +23,17 @@ export function ConsentToggle({ customerId, smsConsent, emailConsent }: {
   }
 
   return (
-    <div className="card p-4 flex items-center justify-between">
+    <div className="card p-5 flex items-center justify-between gap-4 flex-wrap">
       <div>
-        <h2 className="font-medium">TCPA consent</h2>
-        <p className="text-xs text-ink-muted">Required by law for outbound SMS.</p>
+        <h2 className="font-semibold">Permission to contact</h2>
+        <p className="text-xs text-ink-muted mt-1">Required by law before we send any text messages.</p>
       </div>
       <div className="flex gap-2">
         <button className={smsConsent ? "chip-cool" : "chip-muted"} onClick={() => toggle("smsConsent", !smsConsent)} disabled={busy}>
-          SMS {smsConsent ? "yes" : "no"}
+          Text messages: {smsConsent ? "Opted in" : "Off"}
         </button>
         <button className={emailConsent ? "chip-cool" : "chip-muted"} onClick={() => toggle("emailConsent", !emailConsent)} disabled={busy}>
-          Email {emailConsent ? "yes" : "no"}
+          Email: {emailConsent ? "Opted in" : "Off"}
         </button>
       </div>
     </div>

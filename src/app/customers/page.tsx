@@ -27,57 +27,62 @@ export default async function CustomersPage({ searchParams }: { searchParams?: {
   });
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Customers</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="page-title">Customers</h1>
+        <p className="page-sub">Everyone who's called or been booked. We add them automatically.</p>
+      </div>
 
       <form className="flex gap-2">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Search name, phone, email…"
-          className="border border-surface-border rounded-md px-3 h-9 text-sm flex-1"
-        />
+        <input name="q" defaultValue={q} placeholder="Search by name, phone, or email…" className="input flex-1" />
         <button className="btn-primary" type="submit">Search</button>
       </form>
 
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-sub text-ink-muted text-xs uppercase tracking-wider">
-            <tr>
-              <th className="text-left p-3">Name</th>
-              <th className="text-left p-3">Contact</th>
-              <th className="text-left p-3">Consent</th>
-              <th className="text-right p-3">Appts</th>
-              <th className="text-right p-3">Calls</th>
-              <th className="text-left p-3">Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {customers.length === 0 ? (
-              <tr><td colSpan={6} className="p-6 text-center text-ink-muted">No customers match.</td></tr>
-            ) : (
-              customers.map(c => (
-                <tr key={c.id} className="border-t border-surface-border hover:bg-surface-sub/60">
-                  <td className="p-3">
+        {customers.length === 0 ? (
+          <div className="empty">
+            <div className="empty-title">{q ? "No customers match" : "No customers yet"}</div>
+            <div className="empty-sub">
+              {q ? "Try a different name, phone, or email." : "Your first caller will appear here."}
+            </div>
+          </div>
+        ) : (
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Contact</th>
+                <th>Text consent</th>
+                <th className="text-right">Appointments</th>
+                <th className="text-right">Calls</th>
+                <th>Last activity</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map(c => (
+                <tr key={c.id}>
+                  <td>
                     <Link href={`/customers/${c.id}`} className="text-lane hover:underline">
                       {c.firstName ?? ""} {c.lastName ?? "(no name)"}
                     </Link>
                   </td>
-                  <td className="p-3">
+                  <td>
                     <div className="text-xs">{c.phone ?? "—"}</div>
                     <div className="text-xs text-ink-muted">{c.email ?? "—"}</div>
                   </td>
-                  <td className="p-3 text-xs">
-                    <span className={c.smsConsent ? "chip-cool" : "chip-muted"}>SMS {c.smsConsent ? "yes" : "no"}</span>
+                  <td>
+                    <span className={c.smsConsent ? "chip-cool" : "chip-muted"}>
+                      {c.smsConsent ? "Opted in" : "Not opted in"}
+                    </span>
                   </td>
-                  <td className="p-3 text-right tabular-nums">{c._count.appointments}</td>
-                  <td className="p-3 text-right tabular-nums">{c._count.callSessions}</td>
-                  <td className="p-3 text-ink-muted">{formatDistanceToNowStrict(c.updatedAt, { addSuffix: true })}</td>
+                  <td className="text-right tabular-nums">{c._count.appointments}</td>
+                  <td className="text-right tabular-nums">{c._count.callSessions}</td>
+                  <td className="text-ink-muted text-xs">{formatDistanceToNowStrict(c.updatedAt, { addSuffix: true })}</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

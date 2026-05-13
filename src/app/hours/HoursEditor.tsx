@@ -14,13 +14,14 @@ export function HoursEditor({ hours }: { hours: H[] }) {
       const h = map.get(i);
       return {
         dayOfWeek: i,
-        open: h ? mToHHMM(h.openMin) : "",
-        close: h ? mToHHMM(h.closeMin) : "",
+        open: h ? mToHHMM(h.openMin) : "09:00",
+        close: h ? mToHHMM(h.closeMin) : "18:00",
         closed: !h,
       };
     })
   );
   const [busy, setBusy] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   function setDay(i: number, patch: Partial<typeof state[number]>) {
     setState(prev => prev.map((d, j) => j === i ? { ...d, ...patch } : d));
@@ -41,25 +42,27 @@ export function HoursEditor({ hours }: { hours: H[] }) {
       }),
     });
     setBusy(false);
+    setSavedAt(new Date());
     router.refresh();
   }
 
   return (
-    <div className="card p-4 space-y-3">
+    <div className="card p-5 space-y-2">
       {state.map((d, i) => (
-        <div key={i} className="flex items-center gap-3">
-          <div className="w-24 text-sm">{DAYS[d.dayOfWeek]}</div>
-          <label className="flex items-center gap-1 text-xs">
+        <div key={i} className="flex items-center gap-3 py-1">
+          <div className="w-24 text-sm font-medium">{DAYS[d.dayOfWeek]}</div>
+          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
             <input type="checkbox" checked={d.closed} onChange={e => setDay(i, { closed: e.target.checked })} />
             Closed
           </label>
-          <input type="time" value={d.open} disabled={d.closed} className="border border-surface-border rounded-md px-2 h-9 text-sm" onChange={e => setDay(i, { open: e.target.value })} />
-          <span className="text-xs">to</span>
-          <input type="time" value={d.close} disabled={d.closed} className="border border-surface-border rounded-md px-2 h-9 text-sm" onChange={e => setDay(i, { close: e.target.value })} />
+          <input type="time" value={d.open} disabled={d.closed} className="input w-28" onChange={e => setDay(i, { open: e.target.value })} />
+          <span className="text-xs text-ink-muted">to</span>
+          <input type="time" value={d.close} disabled={d.closed} className="input w-28" onChange={e => setDay(i, { close: e.target.value })} />
         </div>
       ))}
-      <div className="pt-2">
+      <div className="pt-3 flex items-center gap-3">
         <button className="btn-primary" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save hours"}</button>
+        {savedAt && <span className="text-xs text-ink-muted">Saved at {savedAt.toLocaleTimeString()}.</span>}
       </div>
     </div>
   );

@@ -11,10 +11,12 @@ export default async function ServicesPage() {
     orderBy: [{ active: "desc" }, { name: "asc" }],
   });
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Services</h1>
-        <p className="text-xs text-ink-muted">What the voice agent can book. The agent only mentions services from this list.</p>
+        <h1 className="page-title">Services</h1>
+        <p className="page-sub">
+          What the agent is allowed to book. If a service isn't on this list, the agent won't mention it or schedule it.
+        </p>
       </div>
       <ServiceEditor
         services={services.map(s => ({

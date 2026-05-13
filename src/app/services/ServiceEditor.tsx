@@ -67,21 +67,18 @@ export function ServiceEditor({ services }: { services: S[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="card p-4 space-y-3">
-        <h2 className="font-medium">Add a service</h2>
+      <div className="card p-5 space-y-3">
+        <h2 className="font-semibold">Add a service</h2>
+        <p className="text-xs text-ink-muted">
+          The more accurate the description, the better the agent explains it to callers.
+        </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <input className="border border-surface-border rounded-md px-2 h-9 text-sm" placeholder="Name (required)"
-            value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} />
-          <input className="border border-surface-border rounded-md px-2 h-9 text-sm" placeholder="Category"
-            value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })} />
-          <input type="number" className="border border-surface-border rounded-md px-2 h-9 text-sm" placeholder="Duration (min)"
-            value={draft.durationMin} onChange={e => setDraft({ ...draft, durationMin: Number(e.target.value) })} />
-          <input type="number" className="border border-surface-border rounded-md px-2 h-9 text-sm" placeholder="Price ($)"
-            value={draft.priceUsd} onChange={e => setDraft({ ...draft, priceUsd: e.target.value })} />
-          <input className="border border-surface-border rounded-md px-2 h-9 text-sm md:col-span-2" placeholder="Provider kind (e.g. mechanic, stylist, sales_rep)"
-            value={draft.providerKind} onChange={e => setDraft({ ...draft, providerKind: e.target.value })} />
-          <input className="border border-surface-border rounded-md px-2 h-9 text-sm md:col-span-2" placeholder="Description (the agent says this aloud)"
-            value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} />
+          <input className="input" placeholder="Name (required)" value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} />
+          <input className="input" placeholder="Category" value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })} />
+          <input type="number" className="input" placeholder="Duration (min)" value={draft.durationMin} onChange={e => setDraft({ ...draft, durationMin: Number(e.target.value) })} />
+          <input type="number" className="input" placeholder="Price ($)" value={draft.priceUsd} onChange={e => setDraft({ ...draft, priceUsd: e.target.value })} />
+          <input className="input md:col-span-2" placeholder="Staff kind (e.g. mechanic, stylist, sales rep)" value={draft.providerKind} onChange={e => setDraft({ ...draft, providerKind: e.target.value })} />
+          <input className="input md:col-span-2" placeholder="Description — the agent says this aloud" value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} />
         </div>
         <div>
           <button className="btn-primary" onClick={create} disabled={busy || !draft.name.trim()}>
@@ -91,37 +88,42 @@ export function ServiceEditor({ services }: { services: S[] }) {
       </div>
 
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-sub text-ink-muted text-xs uppercase tracking-wider">
-            <tr>
-              <th className="text-left p-3">Name</th>
-              <th className="text-left p-3">Category</th>
-              <th className="text-right p-3">Duration</th>
-              <th className="text-right p-3">Price</th>
-              <th className="text-left p-3">Description</th>
-              <th className="text-right p-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {services.length === 0 ? (
-              <tr><td colSpan={6} className="p-6 text-center text-ink-muted">No services yet.</td></tr>
-            ) : services.map(s => (
-              <tr key={s.id} className={"border-t border-surface-border " + (s.active ? "" : "opacity-50")}>
-                <td className="p-3 font-medium">{s.name}</td>
-                <td className="p-3 text-xs text-ink-muted">{s.category ?? "—"}</td>
-                <td className="p-3 text-right tabular-nums">{s.durationMin}m</td>
-                <td className="p-3 text-right tabular-nums">{s.priceUsd ? `$${s.priceUsd}` : "—"}</td>
-                <td className="p-3 text-xs text-ink-muted line-clamp-2 max-w-md">{s.description ?? "—"}</td>
-                <td className="p-3 text-right">
-                  <button className="btn-secondary mr-1" onClick={() => toggle(s.id, !s.active)} disabled={busy}>
-                    {s.active ? "Disable" : "Enable"}
-                  </button>
-                  <button className="btn-danger" onClick={() => remove(s.id)} disabled={busy}>Delete</button>
-                </td>
+        {services.length === 0 ? (
+          <div className="empty">
+            <div className="empty-title">No services yet</div>
+            <div className="empty-sub">Add at least one so callers have something to book.</div>
+          </div>
+        ) : (
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Service</th>
+                <th>Category</th>
+                <th className="text-right">Duration</th>
+                <th className="text-right">Price</th>
+                <th>Description</th>
+                <th className="text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {services.map(s => (
+                <tr key={s.id} className={s.active ? "" : "opacity-50"}>
+                  <td className="font-medium">{s.name}</td>
+                  <td className="text-xs text-ink-muted">{s.category ?? "—"}</td>
+                  <td className="text-right tabular-nums">{s.durationMin}m</td>
+                  <td className="text-right tabular-nums">{s.priceUsd ? `$${s.priceUsd}` : "—"}</td>
+                  <td className="text-xs text-ink-muted max-w-md">{s.description ?? "—"}</td>
+                  <td className="text-right whitespace-nowrap">
+                    <button className="btn-secondary mr-1" onClick={() => toggle(s.id, !s.active)} disabled={busy}>
+                      {s.active ? "Disable" : "Enable"}
+                    </button>
+                    <button className="btn-danger" onClick={() => remove(s.id)} disabled={busy}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

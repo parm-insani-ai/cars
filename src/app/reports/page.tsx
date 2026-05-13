@@ -43,43 +43,45 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { d
   const voicemail = callsByOutcome.find(r => r.outcome === "voicemail")?._count ?? 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between">
+    <div className="space-y-8">
+      <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Reports</h1>
-          <p className="text-xs text-ink-muted">Last {days} days</p>
+          <h1 className="page-title">Reports</h1>
+          <p className="page-sub">How your agent is performing.</p>
         </div>
         <div className="flex gap-2">
           {[1, 7, 30, 90].map(d => (
-            <a key={d} href={`/reports?days=${d}`} className={d === days ? "btn-primary" : "btn-secondary"}>{d}d</a>
+            <a key={d} href={`/reports?days=${d}`} className={d === days ? "btn-primary" : "btn-secondary"}>
+              Last {d === 1 ? "day" : `${d} days`}
+            </a>
           ))}
         </div>
       </div>
 
-      <section>
-        <h2 className="text-xs uppercase tracking-wider text-ink-muted font-semibold mb-2">Calls</h2>
+      <section className="space-y-2">
+        <h2 className="section-title">Calls</h2>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-          <Kpi label="Total" value={callsTotal} />
+          <Kpi label="Total calls" value={callsTotal} />
           <Kpi label="Booked" value={booked} sub={pct(booked, callsTotal)} accent="cool" />
-          <Kpi label="Transferred" value={transferred} sub={pct(transferred, callsTotal)} />
+          <Kpi label="Transferred to staff" value={transferred} sub={pct(transferred, callsTotal)} />
           <Kpi label="Message taken" value={messageTaken} sub={pct(messageTaken, callsTotal)} />
           <Kpi label="Voicemail" value={voicemail} sub={pct(voicemail, callsTotal)} />
           <Kpi label="Avg duration" value={avgDuration._avg.durationSec ? `${Math.round(avgDuration._avg.durationSec)}s` : "—"} />
         </div>
       </section>
 
-      <section>
-        <h2 className="text-xs uppercase tracking-wider text-ink-muted font-semibold mb-2">Appointments</h2>
+      <section className="space-y-2">
+        <h2 className="section-title">Appointments</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Kpi label="Total" value={apptsTotal} />
+          <Kpi label="Booked" value={apptsTotal} />
           <Kpi label="Completed" value={completed} sub={pct(completed, apptsTotal)} accent="cool" />
           <Kpi label="No-shows" value={noShow} sub={pct(noShow, apptsTotal)} accent={noShow > 0 ? "hot" : undefined} />
           <Kpi label="Show rate" value={apptsTotal ? `${Math.round((completed / apptsTotal) * 100)}%` : "—"} />
         </div>
       </section>
 
-      <section>
-        <h2 className="text-xs uppercase tracking-wider text-ink-muted font-semibold mb-2">Outbound follow-ups</h2>
+      <section className="space-y-2">
+        <h2 className="section-title">Outbound messages</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Kpi label="Sent" value={followUps.find(f => f.status === "sent")?._count ?? 0} />
           <Kpi label="Scheduled" value={followUps.find(f => f.status === "scheduled")?._count ?? 0} />
@@ -88,24 +90,21 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { d
         </div>
       </section>
 
-      <section>
-        <h2 className="text-xs uppercase tracking-wider text-ink-muted font-semibold mb-2">Cost</h2>
-        <Kpi label="Platform cost (Vapi)" value={costs._sum.cost != null ? `$${costs._sum.cost.toFixed(2)}` : "—"} />
+      <section className="space-y-2">
+        <h2 className="section-title">Cost</h2>
+        <Kpi label="Platform spend (voice provider)" value={costs._sum.cost != null ? `$${costs._sum.cost.toFixed(2)}` : "—"} />
       </section>
     </div>
   );
 }
 
-function pct(n: number, d: number) {
-  if (!d) return "";
-  return `${Math.round((n / d) * 100)}%`;
-}
-function Kpi({ label, value, sub, accent }: { label: string; value: number | string; sub?: string; accent?: "cool" | "hot" }) {
+function pct(n: number, d: number) { if (!d) return ""; return `${Math.round((n / d) * 100)}% of calls`; }
+function Kpi({ label, value, sub, accent }: { label: string; value: number | string; sub?: string; accent?: "cool" | "warm" | "hot" }) {
   return (
-    <div className="card p-3">
-      <div className="text-xs text-ink-muted">{label}</div>
-      <div className={"text-xl font-semibold " + (accent === "hot" ? "text-lane-hot" : accent === "cool" ? "text-lane-cool" : "")}>{value}</div>
-      {sub && <div className="text-xs text-ink-muted">{sub}</div>}
+    <div className={"kpi " + (accent ? `kpi-${accent}` : "")}>
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value">{value}</div>
+      {sub && <div className="kpi-sub">{sub}</div>}
     </div>
   );
 }

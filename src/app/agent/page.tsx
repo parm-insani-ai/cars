@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { AgentEditor } from "./AgentEditor";
+import { verticalLabel } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
@@ -10,14 +11,14 @@ export default async function AgentPage() {
     where: { id: user.businessId },
     include: { agentConfig: true },
   });
-  if (!business) return <div>No business.</div>;
-  if (!business.agentConfig) return <div>Agent not configured. Seed should run.</div>;
+  if (!business) return <div>No business found.</div>;
+  if (!business.agentConfig) return <div>Agent isn't configured yet. Re-run the seed.</div>;
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-xl font-semibold">Voice agent</h1>
-        <p className="text-xs text-ink-muted">How your agent sounds, what it&apos;s allowed to do, and where to transfer when it can&apos;t help.</p>
+        <h1 className="page-title">Voice agent</h1>
+        <p className="page-sub">How your agent sounds, what it's allowed to do, and where to transfer when it needs a human.</p>
       </div>
       <AgentEditor
         config={{
@@ -34,7 +35,7 @@ export default async function AgentPage() {
           smsFooter: business.agentConfig.smsFooter,
         }}
         phoneNumber={business.phoneNumber}
-        vertical={business.vertical}
+        vertical={verticalLabel[business.vertical] ?? business.vertical}
       />
     </div>
   );

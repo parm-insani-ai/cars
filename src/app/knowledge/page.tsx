@@ -11,14 +11,15 @@ export default async function KnowledgePage() {
     orderBy: { title: "asc" },
   });
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-xl font-semibold">Knowledge base</h1>
-        <p className="text-xs text-ink-muted">The agent reads these to answer caller questions (financing, hours, parking, policies…). Keep each one focused.</p>
+        <h1 className="page-title">Knowledge base</h1>
+        <p className="page-sub">
+          Short answers your agent reads aloud when callers ask. Think financing terms, parking, refund policy, what your hours actually mean —
+          anything you'd put on an FAQ page.
+        </p>
       </div>
-      <KnowledgeEditor
-        articles={articles.map(a => ({ id: a.id, title: a.title, body: a.body, tags: a.tags }))}
-      />
+      <KnowledgeEditor articles={articles.map(a => ({ id: a.id, title: a.title, body: a.body, tags: a.tags }))} />
     </div>
   );
 }

@@ -2,23 +2,89 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { height: 100%; background: theme('colors.surface.sub'); color: theme('colors.ink.DEFAULT'); }
+html, body {
+  height: 100%;
+  background: theme('colors.surface.sub');
+  color: theme('colors.ink.DEFAULT');
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Page elements ----------------------------------------------------- */
 
 .card {
-  @apply bg-white border border-surface-border rounded-lg shadow-sm;
+  @apply bg-white border border-surface-border rounded-xl shadow-[0_1px_2px_rgba(11,15,20,0.04)] transition-shadow;
 }
+.card:hover { @apply shadow-[0_2px_8px_rgba(11,15,20,0.06)]; }
+
+.section-title { @apply text-xs uppercase tracking-wider text-ink-muted font-semibold; }
+.page-title    { @apply text-2xl font-semibold tracking-tight; }
+.page-sub      { @apply text-sm text-ink-muted; }
+
+/* --- Buttons ---------------------------------------------------------- */
 
 .btn {
-  @apply inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
+  @apply inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium transition-all
+         disabled:opacity-50 disabled:pointer-events-none;
 }
-.btn-primary { @apply btn bg-ink text-white hover:bg-ink-soft; }
-.btn-secondary { @apply btn bg-white border border-surface-border text-ink hover:bg-surface-sub; }
-.btn-danger   { @apply btn bg-lane-hot text-white hover:opacity-90; }
+.btn-primary   { @apply btn bg-ink text-white hover:bg-ink-soft active:translate-y-px; }
+.btn-secondary { @apply btn bg-white border border-surface-border text-ink hover:bg-surface-sub hover:border-ink/20 active:translate-y-px; }
+.btn-danger    { @apply btn bg-lane-hot text-white hover:opacity-90 active:translate-y-px; }
+.btn-ghost     { @apply btn bg-transparent text-ink-muted hover:bg-surface-sub hover:text-ink; }
+
+/* --- Chips ----------------------------------------------------------- */
 
 .chip {
-  @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  @apply inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide;
 }
-.chip-hot  { @apply chip bg-lane-hot/10 text-lane-hot; }
-.chip-warm { @apply chip bg-lane-warm/10 text-lane-warm; }
-.chip-cool { @apply chip bg-lane-cool/10 text-lane-cool; }
-.chip-muted { @apply chip bg-ink-muted/10 text-ink-muted; }
+.chip-cool  { @apply chip bg-lane-cool/10 text-lane-cool ring-1 ring-inset ring-lane-cool/20; }
+.chip-warm  { @apply chip bg-lane-warm/10 text-amber-700 ring-1 ring-inset ring-lane-warm/20; }
+.chip-hot   { @apply chip bg-lane-hot/10 text-lane-hot ring-1 ring-inset ring-lane-hot/20; }
+.chip-muted { @apply chip bg-ink-muted/10 text-ink-muted ring-1 ring-inset ring-ink-muted/15; }
+
+/* --- Inputs ---------------------------------------------------------- */
+
+.input {
+  @apply border border-surface-border rounded-lg px-3 h-9 text-sm bg-white
+         focus:outline-none focus:ring-2 focus:ring-lane/30 focus:border-lane;
+}
+.input-textarea {
+  @apply border border-surface-border rounded-lg px-3 py-2 text-sm bg-white
+         focus:outline-none focus:ring-2 focus:ring-lane/30 focus:border-lane;
+}
+
+/* --- Tables ---------------------------------------------------------- */
+
+.tbl       { @apply w-full text-sm; }
+.tbl thead { @apply bg-surface-sub text-ink-muted text-[11px] uppercase tracking-wider; }
+.tbl th    { @apply text-left p-3 font-semibold; }
+.tbl td    { @apply p-3 align-top; }
+.tbl tr    { @apply border-t border-surface-border; }
+.tbl tbody tr:hover { @apply bg-surface-sub/60; }
+
+/* --- Bubbles for call transcript ------------------------------------ */
+
+.bubble-agent    { @apply bg-ink/5 rounded-xl p-3; }
+.bubble-customer { @apply bg-lane/10 rounded-xl p-3; }
+.bubble-tool     { @apply bg-surface-sub font-mono text-xs rounded-lg p-2 text-ink-muted; }
+
+/* --- Empty state ---------------------------------------------------- */
+
+.empty {
+  @apply card p-10 text-center space-y-3;
+}
+.empty-icon {
+  @apply inline-flex items-center justify-center w-12 h-12 rounded-full bg-surface-sub text-ink-muted mx-auto;
+}
+.empty-title { @apply text-base font-medium text-ink; }
+.empty-sub   { @apply text-sm text-ink-muted max-w-md mx-auto; }
+
+/* --- KPI cards ------------------------------------------------------ */
+
+.kpi          { @apply card p-4 space-y-1; }
+.kpi-label    { @apply text-xs text-ink-muted uppercase tracking-wider; }
+.kpi-value    { @apply text-2xl font-semibold tracking-tight; }
+.kpi-sub      { @apply text-xs text-ink-muted; }
+.kpi-cool .kpi-value { @apply text-lane-cool; }
+.kpi-hot .kpi-value  { @apply text-lane-hot; }
+.kpi-warm .kpi-value { @apply text-amber-700; }

@@ -11,10 +11,10 @@ export default async function HoursPage() {
     orderBy: { dayOfWeek: "asc" },
   });
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-xl font-semibold">Business hours</h1>
-        <p className="text-xs text-ink-muted">The agent only proposes appointment times inside these windows.</p>
+        <h1 className="page-title">Business hours</h1>
+        <p className="page-sub">The agent only offers appointment times that fall within these hours.</p>
       </div>
       <HoursEditor hours={hours.map(h => ({ dayOfWeek: h.dayOfWeek, openMin: h.openMin, closeMin: h.closeMin }))} />
     </div>
