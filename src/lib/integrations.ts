@@ -2,7 +2,7 @@
 // Pulls from env, never from request — safe to call from server components.
 
 export type IntegrationStatus = {
-  key: "anthropic" | "vapi" | "twilio" | "google_calendar" | "inngest";
+  key: "anthropic" | "vapi" | "twilio" | "google_calendar" | "stripe" | "inngest";
   name: string;
   required: boolean;
   connected: boolean;
@@ -31,8 +31,8 @@ export function listIntegrations(): IntegrationStatus[] {
       connected: Boolean(process.env.VAPI_API_KEY),
       detail: process.env.VAPI_API_KEY
         ? "Connected. Real phone calls will route through Vapi."
-        : "Optional. Without it, you can only use the Try-the-agent simulator (no live phone calls).",
-      envVars: ["VAPI_API_KEY", "VAPI_WEBHOOK_SECRET", "PUBLIC_BASE_URL"],
+        : "Without it, you can only use the Try-the-agent simulator (no live phone calls).",
+      envVars: ["VAPI_API_KEY", "VAPI_WEBHOOK_SECRET", "PUBLIC_BASE_URL", "VAPI_OUTBOUND_PHONE_NUMBER_ID"],
       helpUrl: "https://vapi.ai",
     },
     {
@@ -45,21 +45,32 @@ export function listIntegrations(): IntegrationStatus[] {
         process.env.TWILIO_FROM_NUMBER,
       ),
       detail: process.env.TWILIO_ACCOUNT_SID
-        ? "Connected. Reminder texts and confirmations will go out via SMS."
-        : "Optional. Without it, text reminders are logged to the console only.",
+        ? "Connected. Reminder texts, deposit links, and two-way SMS conversations will go through Twilio."
+        : "Without it, text reminders are logged to the console only and the two-way SMS webhook is inactive.",
       envVars: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER"],
       helpUrl: "https://www.twilio.com/console",
     },
     {
       key: "google_calendar",
-      name: "Google Calendar (sync)",
+      name: "Google Calendar (two-way sync)",
       required: false,
-      connected: Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID),
+      connected: Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET),
       detail: process.env.GOOGLE_OAUTH_CLIENT_ID
-        ? "Connected (stub — full sync coming soon)."
-        : "Optional. Without it, appointments live in Frontdesk only.",
-      envVars: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"],
+        ? "OAuth configured. Click 'Connect Google' below to authorize this business's calendar."
+        : "Without it, appointments live in Frontdesk only. Connect to sync with Google Calendar — the agent will avoid double-booking automatically.",
+      envVars: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "PUBLIC_BASE_URL"],
       helpUrl: "https://console.cloud.google.com",
+    },
+    {
+      key: "stripe",
+      name: "Stripe (deposits & cards on file)",
+      required: false,
+      connected: Boolean(process.env.STRIPE_SECRET_KEY),
+      detail: process.env.STRIPE_SECRET_KEY
+        ? "Connected. The agent can text a deposit link mid-call to lock the appointment."
+        : "Without it, the agent can still book, but you can't collect deposits — which is the single biggest no-show preventer.",
+      envVars: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
+      helpUrl: "https://dashboard.stripe.com",
     },
     {
       key: "inngest",
@@ -68,7 +79,7 @@ export function listIntegrations(): IntegrationStatus[] {
       connected: Boolean(process.env.INNGEST_EVENT_KEY),
       detail: process.env.INNGEST_EVENT_KEY
         ? "Connected to Inngest Cloud."
-        : "Optional. Without it, reminders and follow-ups run in dev mode only.",
+        : "Without it, reminders, follow-ups, and campaigns run in dev mode only.",
       envVars: ["INNGEST_EVENT_KEY", "INNGEST_SIGNING_KEY"],
       helpUrl: "https://www.inngest.com",
     },
@@ -77,6 +88,5 @@ export function listIntegrations(): IntegrationStatus[] {
 
 export function setupComplete(): boolean {
   // "Setup complete" = the required integration (Anthropic) is connected.
-  // Optional integrations don't block the pill from clearing.
   return listIntegrations().filter(i => i.required).every(i => i.connected);
 }

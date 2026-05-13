@@ -8,7 +8,14 @@ const PUBLIC_PATHS = [
   "/api/voice/llm",
   "/api/voice/webhook",
   "/api/voice/simulate",
+  "/api/webhooks/sms",
+  "/api/webhooks/stripe",
+  "/api/auth/google/start",
+  "/api/auth/google/callback",
+  "/api/mock-checkout/confirm",
   "/api/inngest",
+  "/mock-checkout",
+  "/deposit",
 ];
 
 export function middleware(req: NextRequest) {

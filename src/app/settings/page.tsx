@@ -2,24 +2,33 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { listIntegrations } from "@/lib/integrations";
 import { SettingsForm } from "./SettingsForm";
+import { DepositSettings } from "./DepositSettings";
+import { DigestSettings } from "./DigestSettings";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams?: { google?: string } }) {
   const user = await requireUser();
   const business = await prisma.business.findUnique({ where: { id: user.businessId } });
   if (!business) return <div>Business not found.</div>;
 
   const integrations = listIntegrations();
+  const googleStatus = searchParams?.google;
 
   return (
     <div className="space-y-8 max-w-3xl">
       <div>
         <h1 className="page-title">Settings</h1>
-        <p className="page-sub">Connect your phone provider and messaging, and configure how your agent identifies your business.</p>
+        <p className="page-sub">Connect your phone provider, payments, and calendar. Configure how the agent identifies your business.</p>
       </div>
 
-      {/* Business details ------------------------------------------------- */}
+      {googleStatus === "connected" && (
+        <div className="card p-4 bg-lane-cool/5 border-lane-cool/30">
+          <p className="text-sm"><strong>Google Calendar connected.</strong> The agent will sync new bookings here and avoid double-booking against your existing events.</p>
+        </div>
+      )}
+
+      {/* Business details */}
       <section className="space-y-3">
         <div>
           <h2 className="text-base font-semibold">Your business</h2>
@@ -33,7 +42,58 @@ export default async function SettingsPage() {
         />
       </section>
 
-      {/* Integrations ---------------------------------------------------- */}
+      {/* Deposits */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Deposits</h2>
+          <p className="text-xs text-ink-muted">The single biggest no-show preventer. The agent texts a payment link mid-call.</p>
+        </div>
+        <DepositSettings
+          enabled={business.depositsEnabled}
+          defaultDepositCents={business.defaultDepositCents}
+          stripeConfigured={Boolean(process.env.STRIPE_SECRET_KEY)}
+        />
+      </section>
+
+      {/* End-of-day digest */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">End-of-day text recap</h2>
+          <p className="text-xs text-ink-muted">A short text every evening with the day's calls, bookings, and tomorrow's schedule.</p>
+        </div>
+        <DigestSettings
+          enabled={business.digestEnabled}
+          recipientPhone={business.digestRecipientPhone}
+          recipientEmail={business.digestRecipientEmail}
+          hourLocal={business.digestHourLocal}
+          timezone={business.timezone}
+        />
+      </section>
+
+      {/* Google Calendar connect */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Google Calendar</h2>
+          <p className="text-xs text-ink-muted">Connect your Google account so the agent's bookings sync both ways.</p>
+        </div>
+        <div className="card p-5 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-0">
+            {business.googleRefreshToken ? (
+              <>
+                <p className="text-sm font-medium">Connected</p>
+                <p className="text-xs text-ink-muted">Calendar id: {business.googleCalendarId ?? "primary"}</p>
+              </>
+            ) : (
+              <p className="text-sm text-ink-muted">Not connected to Google.</p>
+            )}
+          </div>
+          {process.env.GOOGLE_OAUTH_CLIENT_ID
+            ? <a className="btn-primary" href="/api/auth/google/start">{business.googleRefreshToken ? "Reconnect" : "Connect Google"}</a>
+            : <span className="text-xs text-ink-muted">Set GOOGLE_OAUTH_CLIENT_ID in .env first.</span>}
+        </div>
+      </section>
+
+      {/* Integrations */}
       <section className="space-y-3">
         <div>
           <h2 className="text-base font-semibold">Integrations</h2>
@@ -61,7 +121,6 @@ export default async function SettingsPage() {
                 )}
               </div>
 
-              {/* Always-visible setup hints */}
               {!i.connected && (
                 <div className="mt-4 rounded-lg bg-surface-sub border border-surface-border p-3">
                   <div className="text-xs uppercase tracking-wider text-ink-muted font-semibold mb-2">How to connect</div>
@@ -79,7 +138,7 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      {/* Environment file help -------------------------------------------- */}
+      {/* Env help */}
       <section className="card p-5 space-y-2">
         <h3 className="font-semibold">Where do environment variables go?</h3>
         <p className="text-sm text-ink-muted">
@@ -91,10 +150,15 @@ export default async function SettingsPage() {
 ANTHROPIC_API_KEY="sk-ant-..."
 VAPI_API_KEY="vapi_..."
 VAPI_WEBHOOK_SECRET="whsec_..."
+VAPI_OUTBOUND_PHONE_NUMBER_ID="pn_..."   # required for outbound campaigns
 PUBLIC_BASE_URL="https://your-app.example.com"
 TWILIO_ACCOUNT_SID="AC..."
 TWILIO_AUTH_TOKEN="..."
-TWILIO_FROM_NUMBER="+14155557701"`}
+TWILIO_FROM_NUMBER="+14155557701"
+STRIPE_SECRET_KEY="sk_live_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+GOOGLE_OAUTH_CLIENT_ID="..."
+GOOGLE_OAUTH_CLIENT_SECRET="..."`}
         </pre>
       </section>
     </div>
@@ -115,27 +179,37 @@ function ConnectInstructions({ provider }: { provider: string }) {
       "Paste the key as ANTHROPIC_API_KEY in your .env file.",
     ],
     vapi: [
-      "Sign up at vapi.ai and create a Vapi account.",
+      "Sign up at vapi.ai and create an account.",
       "From the dashboard, grab your API key and a webhook signing secret.",
       "Buy a phone number through Vapi (or import one from Twilio).",
-      "Set VAPI_API_KEY, VAPI_WEBHOOK_SECRET, and PUBLIC_BASE_URL in .env.",
-      "Add the phone number to this business above and restart the app.",
+      "Set VAPI_API_KEY, VAPI_WEBHOOK_SECRET, PUBLIC_BASE_URL in .env.",
+      "For outbound campaigns: also set VAPI_OUTBOUND_PHONE_NUMBER_ID to the Vapi phone-number id you'll dial FROM.",
+      "Add the inbound number to this business above and restart the app.",
     ],
     twilio: [
       "Sign in at console.twilio.com.",
       "Copy your Account SID and Auth Token from the dashboard.",
       "Buy or claim an SMS-capable phone number.",
-      "Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER in .env.",
+      "Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER in .env.",
+      "For two-way SMS: point your Twilio number's 'A message comes in' webhook at /api/webhooks/sms (HTTP POST).",
     ],
     google_calendar: [
       "Open Google Cloud Console and create an OAuth 2.0 Client (Web).",
-      "Add http://localhost:3000/api/auth/callback/google as an authorized redirect.",
-      "Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in .env.",
-      "(Full Calendar sync UI is on the roadmap — for now this just unlocks the adapter.)",
+      "Add PUBLIC_BASE_URL/api/auth/google/callback as an authorized redirect URI.",
+      "Enable the Google Calendar API on the project.",
+      "Set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET in .env.",
+      "Restart and click 'Connect Google' on this Settings page.",
+    ],
+    stripe: [
+      "Sign in at dashboard.stripe.com (Test mode is fine to start).",
+      "Copy the Secret Key from Developers → API keys.",
+      "Create an endpoint at Developers → Webhooks pointing to PUBLIC_BASE_URL/api/webhooks/stripe; copy its signing secret.",
+      "Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in .env, restart the app.",
+      "Enable deposits in the Deposits section above and set a default amount.",
     ],
     inngest: [
       "Sign up at inngest.com and create a new application.",
-      "Copy the Event Key and Signing Key from the project settings.",
+      "Copy the Event Key and Signing Key from project settings.",
       "Set INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY in .env.",
       "Without these the workflows run in local dev mode, which is fine for now.",
     ],

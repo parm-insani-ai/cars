@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { addMinutes, isBefore, isAfter, startOfDay, addDays, setHours, setMinutes, setSeconds, setMilliseconds } from "date-fns";
+import { calendarAdapter } from "@/integrations/calendar";
 
 // Slot finder. For each provider that can deliver this service, walks the
 // next N days; for each day, takes the intersection of (business hours,
@@ -65,6 +66,19 @@ export async function findAvailableSlots(q: SlotQuery): Promise<Slot[]> {
     },
     select: { scheduledAt: true, durationMin: true, providerId: true },
   });
+
+  // Pull Google Calendar busy intervals (if connected) and treat each as a
+  // blocking appointment that any provider conflicts with.
+  const calBusy = await calendarAdapter().getBusy(q.businessId, q.earliest, addDays(q.latest, 1));
+  if (calBusy) {
+    for (const b of calBusy) {
+      appts.push({
+        scheduledAt: b.start,
+        durationMin: Math.max(1, Math.round((b.end.getTime() - b.start.getTime()) / 60000)),
+        providerId: null,
+      });
+    }
+  }
 
   for (let day = startOfDay(q.earliest); isBefore(day, q.latest); day = addDays(day, 1)) {
     const hours = hoursByDow.get(day.getDay());
@@ -228,9 +242,32 @@ export async function createAppointment(args: {
       status: "confirmed",
       source: args.callSessionId ? "agent" : "manual",
       notes: args.notes,
-      callSessionId: args.callSessionId,
+      callSessionId: args.callSessionId?.startsWith("sms:") ? null : args.callSessionId ?? null,
     },
   });
+
+  // Push to Google Calendar if connected (best effort).
+  try {
+    const customer = await prisma.customer.findUnique({ where: { id: args.customerId } });
+    const title = `${customer?.firstName ?? "Customer"} ${customer?.lastName ?? ""} — ${service.name}`.trim();
+    const created = await calendarAdapter().createEvent({
+      businessId: args.businessId,
+      title,
+      startAt: args.scheduledAt,
+      endAt: addMinutes(args.scheduledAt, service.durationMin),
+      description: args.notes ?? undefined,
+      attendeeEmail: customer?.email ?? undefined,
+    });
+    if (created) {
+      await prisma.appointment.update({
+        where: { id: appt.id },
+        data: { externalCalEventId: created.externalId },
+      });
+    }
+  } catch {
+    /* best-effort */
+  }
+
   return {
     ok: true,
     appointment: appt,

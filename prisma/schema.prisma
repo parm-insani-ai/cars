@@ -44,6 +44,24 @@ model Business {
   // SMS confirmations are sent FROM this number (defaults to phoneNumber).
   smsFromNumber   String?
 
+  // --- Stripe (deposits & cards on file) -------------------------------
+  stripeAccountId       String?
+  stripeAccessToken     String?
+  depositsEnabled       Boolean  @default(false)
+  defaultDepositCents   Int?      // fallback if a service doesn't set its own
+
+  // --- Google Calendar -------------------------------------------------
+  googleCalendarId      String?
+  googleAccessToken     String?
+  googleRefreshToken    String?
+  googleTokenExpiresAt  DateTime?
+
+  // --- End-of-day digest -----------------------------------------------
+  digestEnabled         Boolean  @default(true)
+  digestRecipientPhone  String?
+  digestRecipientEmail  String?
+  digestHourLocal       Int      @default(18)   // 0..23 — hour in business timezone
+
   agentConfig     AgentConfig?
   hours           BusinessHours[]
   services        Service[]
@@ -56,6 +74,8 @@ model Business {
   users           User[]
   followUps       FollowUp[]
   aiEvals         AiEval[]
+  campaigns       Campaign[]
+  smsThreads      SmsThread[]
 
   account         Account   @relation(fields: [accountId], references: [id])
   createdAt       DateTime  @default(now())
@@ -128,6 +148,9 @@ model Service {
   providerKind String?
   description  String?  @db.Text
   active       Boolean  @default(true)
+  // Deposit (Stripe). When set, the agent will request a deposit on book.
+  depositRequired Boolean @default(false)
+  depositCents    Int?    // amount in USD cents
   business     Business @relation(fields: [businessId], references: [id])
   appointments Appointment[]
   createdAt    DateTime @default(now())
@@ -180,6 +203,7 @@ model Customer {
   appointments Appointment[]
   callSessions CallSession[]
   ownedVehicles OwnedVehicle[]   // dealership pack
+  campaignTargets CampaignTarget[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   @@index([businessId, phone])
@@ -244,6 +268,11 @@ model Appointment {
   notes        String?  @db.Text
   externalCalEventId String?    // Google Cal / Cal.com event id
   callSessionId String?           // call that booked this
+  // Deposit / card on file
+  depositCents      Int?
+  depositStatus     String  @default("none")   // none | pending | paid | refunded | failed
+  stripeCheckoutId  String?
+  stripePaymentIntentId String?
   business     Business @relation(fields: [businessId], references: [id])
   customer     Customer? @relation(fields: [customerId], references: [id])
   provider     Provider? @relation(fields: [providerId], references: [id])
@@ -401,4 +430,114 @@ model AiEval {
   createdAt  DateTime @default(now())
   business   Business? @relation(fields: [businessId], references: [id])
   @@index([task, createdAt])
+}
+
+// --- Outbound campaigns -------------------------------------------------
+// "Call every customer we haven't seen in 6+ months and offer them a slot."
+
+enum CampaignStatus {
+  draft
+  scheduled
+  running
+  paused
+  completed
+  canceled
+}
+
+enum CampaignTargetStatus {
+  pending
+  calling
+  completed
+  failed
+  skipped
+  opted_out
+}
+
+model Campaign {
+  id            String   @id @default(cuid())
+  businessId    String
+  name          String
+  status        CampaignStatus @default(draft)
+  // Plain-English description of the campaign goal — used in the agent prompt.
+  goal          String   @db.Text
+  // Quiet hours (per business timezone). Inclusive of start, exclusive of end.
+  quietStartHour Int     @default(20)   // 8pm
+  quietEndHour   Int     @default(9)    // 9am
+  // Max outbound calls per minute, to stay polite and within carrier limits.
+  ratePerMinute  Int     @default(2)
+  // Optional filter criteria captured at campaign-create time, JSON-encoded.
+  filterDef     Json?
+  startsAt      DateTime?
+  completedAt   DateTime?
+  business      Business @relation(fields: [businessId], references: [id])
+  targets       CampaignTarget[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@index([businessId, status])
+}
+
+model CampaignTarget {
+  id            String   @id @default(cuid())
+  campaignId    String
+  customerId    String
+  status        CampaignTargetStatus @default(pending)
+  callSessionId String?     // populated once a call has been placed
+  lastAttemptAt DateTime?
+  attempts      Int      @default(0)
+  outcomeNote   String?  @db.Text
+  campaign      Campaign @relation(fields: [campaignId], references: [id])
+  customer      Customer @relation(fields: [customerId], references: [id])
+  createdAt     DateTime @default(now())
+  @@unique([campaignId, customerId])
+  @@index([campaignId, status])
+}
+
+// --- Two-way SMS conversations ------------------------------------------
+
+enum SmsTurnRole {
+  agent
+  customer
+  system
+  tool
+}
+
+model SmsThread {
+  id            String   @id @default(cuid())
+  businessId    String
+  customerId    String?
+  phoneNumber   String   // The customer's number (E.164).
+  status        String   @default("open")   // open | closed
+  lastInboundAt DateTime?
+  lastOutboundAt DateTime?
+  business      Business @relation(fields: [businessId], references: [id])
+  messages      SmsMessage[]
+  toolCalls     SmsToolCall[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@unique([businessId, phoneNumber])
+  @@index([businessId, status, updatedAt])
+}
+
+model SmsMessage {
+  id         String   @id @default(cuid())
+  threadId   String
+  role       SmsTurnRole
+  body       String   @db.Text
+  externalId String?  // Twilio message id
+  thread     SmsThread @relation(fields: [threadId], references: [id])
+  createdAt  DateTime @default(now())
+  @@index([threadId, createdAt])
+}
+
+model SmsToolCall {
+  id         String   @id @default(cuid())
+  threadId   String
+  toolName   String
+  input      Json
+  output     Json
+  isError    Boolean  @default(false)
+  latencyMs  Int
+  createdAt  DateTime @default(now())
+  thread     SmsThread @relation(fields: [threadId], references: [id])
+  @@index([threadId, createdAt])
 }

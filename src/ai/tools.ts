@@ -2,6 +2,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { findAvailableSlots, createAppointment, lookupOrCreateCustomer } from "@/domain/booking";
 import { addDays, parseISO } from "date-fns";
+import { stripeAdapter } from "@/integrations/stripe";
+import { smsAdapter } from "@/integrations/sms";
 
 // Tools the voice agent can call DURING a call. Each tool maps to a real
 // database operation; the model cannot make anything up.
@@ -16,6 +18,12 @@ export type ToolContext = {
 export type ToolResult =
   | { ok: true; content: unknown }
   | { ok: false; error: string };
+
+// SMS contexts pass a synthetic call session id like "sms:<threadId>".
+// We use this to skip writes to CallSession/CallTurn that don't apply.
+function isSms(ctx: ToolContext): boolean {
+  return ctx.callSessionId.startsWith("sms:");
+}
 
 export function getToolSchemas(opts: {
   canBook: boolean;
@@ -119,6 +127,18 @@ export function getToolSchemas(opts: {
   }
 
   tools.push({
+    name: "request_deposit",
+    description: "Send the caller a text-message link to pay a deposit for an appointment. Use this only AFTER book_appointment has succeeded and the booking response indicates a deposit is required. We will text the link to the caller's phone.",
+    input_schema: {
+      type: "object",
+      properties: {
+        appointment_id: { type: "string" },
+      },
+      required: ["appointment_id"],
+    },
+  });
+
+  tools.push({
     name: "take_message",
     description: "Take a structured message when you can't help. Use this for anything outside scope (price quotes, complaints, vendor inquiries, etc.).",
     input_schema: {
@@ -194,6 +214,7 @@ export async function executeTool(
       case "find_upcoming_appointments": return await findUpcoming(ctx, input);
       case "reschedule_appointment":     return await rescheduleAppointment(ctx, input);
       case "cancel_appointment":         return await cancelAppointment(ctx, input);
+      case "request_deposit":            return await requestDeposit(ctx, input);
       case "take_message":               return await takeMessage(ctx, input);
       case "transfer_to_human":          return await transferToHuman(ctx, input);
       case "end_call":                   return await endCall(ctx, input);
@@ -296,10 +317,28 @@ async function bookAppointment(ctx: ToolContext, input: any): Promise<ToolResult
     callSessionId: ctx.callSessionId,
   });
   if (!result.ok) return { ok: false, error: result.error };
-  await prisma.callSession.update({
+  await prisma.callSession.updateMany({
     where: { id: ctx.callSessionId },
     data: { bookedApptId: result.appointment.id, outcome: "booked" },
   });
+
+  // Compute whether a deposit should be requested.
+  const service = await prisma.service.findUnique({ where: { id: input.service_id } });
+  const business = await prisma.business.findUnique({ where: { id: ctx.businessId } });
+  const depositRequired = Boolean(
+    business?.depositsEnabled &&
+    (service?.depositRequired || (service?.depositCents ?? business?.defaultDepositCents))
+  );
+  const depositCents = depositRequired
+    ? (service?.depositCents ?? business?.defaultDepositCents ?? null)
+    : null;
+  if (depositRequired && depositCents) {
+    await prisma.appointment.update({
+      where: { id: result.appointment.id },
+      data: { depositCents, depositStatus: "pending" },
+    });
+  }
+
   return {
     ok: true,
     content: {
@@ -307,6 +346,11 @@ async function bookAppointment(ctx: ToolContext, input: any): Promise<ToolResult
       confirmed_at_iso: result.appointment.scheduledAt.toISOString(),
       service_name: result.serviceName,
       provider_name: result.providerName,
+      deposit_required: depositRequired,
+      deposit_amount_usd: depositCents != null ? depositCents / 100 : null,
+      next_action: depositRequired
+        ? "Tell the caller a deposit is required to lock the appointment. Then call request_deposit to text them a payment link."
+        : null,
     },
   };
 }
@@ -355,7 +399,7 @@ async function rescheduleAppointment(ctx: ToolContext, input: any): Promise<Tool
     where: { id: appt.id },
     data: { scheduledAt: parseISO(input.new_scheduled_at_iso), status: "confirmed" },
   });
-  await prisma.callSession.update({
+  await prisma.callSession.updateMany({
     where: { id: ctx.callSessionId },
     data: { outcome: "rescheduled" },
   });
@@ -371,7 +415,7 @@ async function cancelAppointment(ctx: ToolContext, input: any): Promise<ToolResu
     where: { id: appt.id },
     data: { status: "canceled", notes: appt.notes ? `${appt.notes}\nCanceled: ${input.reason ?? "(no reason)"}` : `Canceled: ${input.reason ?? "(no reason)"}` },
   });
-  await prisma.callSession.update({
+  await prisma.callSession.updateMany({
     where: { id: ctx.callSessionId },
     data: { outcome: "canceled" },
   });
@@ -379,18 +423,20 @@ async function cancelAppointment(ctx: ToolContext, input: any): Promise<ToolResu
 }
 
 async function takeMessage(ctx: ToolContext, input: any): Promise<ToolResult> {
-  // Stored as a CallTurn with role=system and the call outcome set later.
-  await prisma.callTurn.create({
-    data: {
-      sessionId: ctx.callSessionId,
-      role: "system",
-      text: `MESSAGE: ${input.subject}\n${input.body}\nFrom: ${input.caller_name ?? "(no name)"} ${input.caller_phone ?? ctx.callerPhone ?? ""}\nUrgency: ${input.urgency ?? "medium"}`,
-    },
-  });
-  await prisma.callSession.update({
-    where: { id: ctx.callSessionId },
-    data: { outcome: "message_taken" },
-  });
+  if (!isSms(ctx)) {
+    // Stored as a CallTurn with role=system and the call outcome set later.
+    await prisma.callTurn.create({
+      data: {
+        sessionId: ctx.callSessionId,
+        role: "system",
+        text: `MESSAGE: ${input.subject}\n${input.body}\nFrom: ${input.caller_name ?? "(no name)"} ${input.caller_phone ?? ctx.callerPhone ?? ""}\nUrgency: ${input.urgency ?? "medium"}`,
+      },
+    });
+    await prisma.callSession.updateMany({
+      where: { id: ctx.callSessionId },
+      data: { outcome: "message_taken" },
+    });
+  }
   return { ok: true, content: { message_logged: true } };
 }
 
@@ -401,7 +447,7 @@ async function transferToHuman(ctx: ToolContext, input: any): Promise<ToolResult
   });
   const number = business?.agentConfig?.transferTo;
   if (!number) return { ok: false, error: "no_transfer_number_configured" };
-  await prisma.callSession.update({
+  await prisma.callSession.updateMany({
     where: { id: ctx.callSessionId },
     data: { outcome: "transferred" },
   });
@@ -411,9 +457,10 @@ async function transferToHuman(ctx: ToolContext, input: any): Promise<ToolResult
 }
 
 async function endCall(ctx: ToolContext, input: any): Promise<ToolResult> {
+  if (isSms(ctx)) return { ok: true, content: { ended: true } };
   const session = await prisma.callSession.findUnique({ where: { id: ctx.callSessionId } });
   if (session && session.outcome === "in_progress") {
-    await prisma.callSession.update({
+    await prisma.callSession.updateMany({
       where: { id: ctx.callSessionId },
       data: { outcome: input.outcome ?? "no_action" },
     });
@@ -438,6 +485,59 @@ async function lookupVehicle(ctx: ToolContext, input: any): Promise<ToolResult> 
         year: v.year, make: v.make, model: v.model, trim: v.trim,
         price_usd: v.price, is_new: v.isNew, mileage: v.mileage,
       })),
+    },
+  };
+}
+
+async function requestDeposit(ctx: ToolContext, input: any): Promise<ToolResult> {
+  const appt = await prisma.appointment.findFirst({
+    where: { id: input.appointment_id, businessId: ctx.businessId },
+    include: { customer: true, service: true, business: true },
+  });
+  if (!appt) return { ok: false, error: "appointment_not_found" };
+  if (!appt.business.depositsEnabled) {
+    return { ok: false, error: "deposits_not_enabled" };
+  }
+  const amountCents =
+    appt.depositCents ??
+    appt.service.depositCents ??
+    appt.business.defaultDepositCents ??
+    null;
+  if (!amountCents || amountCents <= 0) return { ok: false, error: "no_deposit_amount_configured" };
+  if (!appt.customer?.phone) return { ok: false, error: "no_customer_phone" };
+
+  const baseUrl = process.env.PUBLIC_BASE_URL || "http://localhost:3000";
+  const co = await stripeAdapter().createDepositCheckout({
+    businessName: appt.business.name,
+    customerEmail: appt.customer.email,
+    customerPhone: appt.customer.phone,
+    amountCents,
+    appointmentId: appt.id,
+    description: `${appt.service.name} — ${appt.scheduledAt.toLocaleString()}`,
+    successUrl: `${baseUrl}/deposit/thanks?appt=${appt.id}`,
+    cancelUrl: `${baseUrl}/deposit/canceled?appt=${appt.id}`,
+  });
+
+  await prisma.appointment.update({
+    where: { id: appt.id },
+    data: { depositCents: amountCents, depositStatus: "pending", stripeCheckoutId: co.sessionId },
+  });
+
+  // Send the link via SMS (only if consent is on file).
+  if (appt.customer.smsConsent) {
+    await smsAdapter().send({
+      fromNumber: appt.business.smsFromNumber ?? appt.business.phoneNumber ?? undefined,
+      to: appt.customer.phone,
+      body: `${appt.business.name}: please confirm your appointment with a $${(amountCents / 100).toFixed(2)} deposit. ${co.checkoutUrl}`,
+    }).catch(() => undefined);
+  }
+
+  return {
+    ok: true,
+    content: {
+      checkout_url: co.checkoutUrl,
+      amount_usd: amountCents / 100,
+      sent_via_sms: appt.customer.smsConsent,
     },
   };
 }
