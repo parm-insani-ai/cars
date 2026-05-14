@@ -6,9 +6,19 @@ import {
   noShowDetection,
   campaignDispatcher,
   dailyDigest,
+  outreachDispatcher,
+  outreachQualifier,
 } from "@/inngest/functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [postCallFollowup, followUpDispatcher, noShowDetection, campaignDispatcher, dailyDigest],
+  functions: [
+    postCallFollowup,
+    followUpDispatcher,
+    noShowDetection,
+    campaignDispatcher,
+    dailyDigest,
+    outreachDispatcher,
+    outreachQualifier,
+  ],
 });

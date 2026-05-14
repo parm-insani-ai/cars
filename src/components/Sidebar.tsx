@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-type Item = { href: string; label: string; icon: ReactNode; section: "work" | "data" | "ops" };
+type Item = { href: string; label: string; icon: ReactNode; section: "work" | "data" | "ops" | "growth" };
 
 // Sidebar items, in display order. Icons are inline SVG (no dep).
 const ITEMS: Item[] = [
@@ -23,9 +23,12 @@ const ITEMS: Item[] = [
   { href: "/reports",      label: "Reports",         icon: <ChartIcon />, section: "ops" },
   { href: "/settings",     label: "Settings",        icon: <CogIcon />, section: "ops" },
   { href: "/demo",         label: "Try the agent",   icon: <PlayIcon />, section: "ops" },
+  { href: "/outreach",          label: "GTM overview",  icon: <RocketIcon />, section: "growth" },
+  { href: "/outreach/prospects", label: "Prospects",    icon: <TargetIcon />, section: "growth" },
+  { href: "/outreach/campaigns", label: "Outreach campaigns", icon: <MegaphoneIcon />, section: "growth" },
 ];
 
-export function Sidebar({ setupComplete }: { setupComplete?: boolean }) {
+export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boolean; showOutreach?: boolean }) {
   const pathname = usePathname() ?? "";
   return (
     <aside className="w-60 flex-none border-r border-surface-border bg-white min-h-screen p-3 hidden md:flex md:flex-col">
@@ -53,6 +56,14 @@ export function Sidebar({ setupComplete }: { setupComplete?: boolean }) {
           />
         ))}
       </Section>
+
+      {showOutreach && (
+        <Section title="Growth (internal)">
+          {ITEMS.filter(i => i.section === "growth").map(i => (
+            <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} />
+          ))}
+        </Section>
+      )}
 
       <div className="mt-auto pt-4 px-2 text-[11px] text-ink-muted">
         Powered by Claude · {new Date().getFullYear()}
@@ -131,3 +142,5 @@ function CogIcon() { return ic(<><circle cx="12" cy="12" r="3" /><path d="M19.4 
 function PlayIcon() { return ic(<polygon points="6 4 20 12 6 20 6 4" />); }
 function ChatIcon() { return ic(<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />); }
 function MegaphoneIcon() { return ic(<><path d="M3 11v2a2 2 0 0 0 2 2h2l8 5V4l-8 5H5a2 2 0 0 0-2 2z" /><path d="M19 5a4 4 0 0 1 0 14" /></>); }
+function RocketIcon() { return ic(<><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" /><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" /><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /></>); }
+function TargetIcon() { return ic(<><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></>); }

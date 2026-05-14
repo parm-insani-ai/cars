@@ -1,0 +1,96 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
+
+// Create / preview / control outreach (GTM) campaigns. Admin-gated.
+
+const CreateOrPreviewBody = z.object({
+  name: z.string(),
+  goal: z.string(),
+  pitch: z.string(),
+  offer: z.string().optional(),
+  repName: z.string().min(1).max(40),
+  verticals: z.array(z.enum(["dealership", "service_shop", "wellness"])).min(1),
+  minScore: z.number().int().min(0).max(100),
+  quietStartHour: z.number().int().min(0).max(23),
+  quietEndHour: z.number().int().min(0).max(23),
+  ratePerMinute: z.number().int().min(1).max(20),
+  maxAttempts: z.number().int().min(1).max(10),
+});
+
+// Prospects eligible for a campaign: qualified, on-vertical, scored high enough,
+// reachable, and not already suppressed/won/lost.
+function audienceWhere(b: z.infer<typeof CreateOrPreviewBody>): Prisma.ProspectWhereInput {
+  return {
+    status: "qualified",
+    vertical: { in: b.verticals },
+    score: { gte: b.minScore },
+    phone: { not: null },
+    doNotCall: false,
+  };
+}
+
+export async function POST(req: NextRequest) {
+  const user = await requireUser();
+  if (user.role !== "admin") return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
+  const op = new URL(req.url).searchParams.get("op");
+
+  if (op === "preview" || op === "create") {
+    const parsed = CreateOrPreviewBody.safeParse(await req.json());
+    if (!parsed.success) return NextResponse.json({ error: "bad_request" }, { status: 400 });
+    const b = parsed.data;
+
+    const prospects = await prisma.prospect.findMany({
+      where: audienceWhere(b),
+      select: { id: true },
+      take: 5000,
+    });
+
+    if (op === "preview") return NextResponse.json({ count: prospects.length });
+
+    if (!b.name.trim()) return NextResponse.json({ error: "name_required" }, { status: 400 });
+    const campaign = await prisma.outreachCampaign.create({
+      data: {
+        name: b.name,
+        goal: b.goal,
+        pitch: b.pitch,
+        offer: b.offer || null,
+        repName: b.repName,
+        quietStartHour: b.quietStartHour,
+        quietEndHour: b.quietEndHour,
+        ratePerMinute: b.ratePerMinute,
+        maxAttempts: b.maxAttempts,
+        filterDef: { verticals: b.verticals, minScore: b.minScore } as any,
+        status: "draft",
+      },
+    });
+    if (prospects.length > 0) {
+      await prisma.outreachTarget.createMany({
+        data: prospects.map(p => ({ campaignId: campaign.id, prospectId: p.id })),
+        skipDuplicates: true,
+      });
+      await prisma.prospect.updateMany({
+        where: { id: { in: prospects.map(p => p.id) }, status: "qualified" },
+        data: { status: "queued" },
+      });
+    }
+    return NextResponse.json({ campaignId: campaign.id });
+  }
+
+  if (op === "start" || op === "pause" || op === "cancel") {
+    const { campaignId } = (await req.json()) as { campaignId: string };
+    const c = await prisma.outreachCampaign.findUnique({ where: { id: campaignId } });
+    if (!c) return NextResponse.json({ error: "not_found" }, { status: 404 });
+    const status = op === "start" ? "running" : op === "pause" ? "paused" : "canceled";
+    await prisma.outreachCampaign.update({
+      where: { id: c.id },
+      data: { status, startsAt: op === "start" && !c.startsAt ? new Date() : c.startsAt },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  return NextResponse.json({ error: "unknown_op" }, { status: 400 });
+}

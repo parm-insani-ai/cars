@@ -46,6 +46,8 @@ async function main() {
   const account = await prisma.account.create({ data: { name: SEED_ACCOUNT_NAME } });
   console.log(`→ Account ${account.id}`);
 
+  let firstBusinessId: string | null = null;
+
   for (const b of businesses) {
     const pack = packFor(b.vertical);
 
@@ -59,6 +61,7 @@ async function main() {
         smsFromNumber: b.smsFromNumber,
       },
     });
+    if (!firstBusinessId) firstBusinessId = business.id;
 
     await prisma.agentConfig.create({
       data: {
@@ -150,6 +153,19 @@ async function main() {
     }
 
     console.log(`  + ${business.name} (${b.vertical}) — ${b.phoneNumber}`);
+  }
+
+  // The operator account — an admin who can reach the internal GTM / outreach
+  // engine (the /outreach routes are gated to role=admin).
+  if (firstBusinessId) {
+    await prisma.user.create({
+      data: {
+        businessId: firstBusinessId,
+        email: "operator@demo.frontdesk.local",
+        name: "Operator (GTM admin)",
+        role: "admin",
+      },
+    });
   }
 
   // Print convenience info for the login picker.

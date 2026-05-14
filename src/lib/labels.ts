@@ -90,6 +90,54 @@ export const providerKindLabel: Record<string, string> = {
   bay: "Service bay",
 };
 
+// --- GTM / outreach engine ---------------------------------------------
+
+export const prospectStatusLabel: Record<string, string> = {
+  new: "Unqualified",
+  qualified: "Qualified",
+  disqualified: "Disqualified",
+  queued: "In a campaign",
+  contacted: "Contacted",
+  converted: "Demo booked",
+  lost: "Lost",
+  do_not_call: "Do not call",
+};
+
+export const prospectStatusChip: Record<string, Chip> = {
+  new: "muted",
+  qualified: "cool",
+  disqualified: "muted",
+  queued: "warm",
+  contacted: "warm",
+  converted: "cool",
+  lost: "hot",
+  do_not_call: "hot",
+};
+
+export const dispositionLabel: Record<string, string> = {
+  demo_booked: "Demo booked",
+  callback_requested: "Callback requested",
+  not_interested: "Not interested",
+  no_answer: "No answer",
+  voicemail: "Voicemail",
+  wrong_number: "Wrong number",
+  bad_fit: "Bad fit",
+  gatekeeper_blocked: "Gatekeeper blocked",
+  do_not_call: "Do not call",
+};
+
+export const dispositionChip: Record<string, Chip> = {
+  demo_booked: "cool",
+  callback_requested: "warm",
+  not_interested: "muted",
+  no_answer: "muted",
+  voicemail: "muted",
+  wrong_number: "hot",
+  bad_fit: "muted",
+  gatekeeper_blocked: "warm",
+  do_not_call: "hot",
+};
+
 export function chipClass(c: Chip): string {
   switch (c) {
     case "cool": return "chip-cool";

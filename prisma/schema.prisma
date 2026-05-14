@@ -541,3 +541,181 @@ model SmsToolCall {
   thread     SmsThread @relation(fields: [threadId], references: [id])
   @@index([threadId, createdAt])
 }
+
+// --- GTM / outbound sales engine (internal tooling) ---------------------
+// NOT part of the customer-facing product. This is how WE find prospective
+// SMB customers and call them with an AI sales rep to sell Frontdesk itself.
+// Deliberately kept on its own data island — no Business/Customer relations —
+// so internal sales tooling can never leak into a tenant's data.
+
+enum ProspectStatus {
+  new            // sourced, not yet qualified
+  qualified      // passed the fit filter — eligible to call
+  disqualified   // filtered out by the qualifier
+  queued         // attached to a running campaign
+  contacted      // at least one call attempt made
+  converted      // booked a demo
+  lost           // not interested / unreachable / bad fit
+  do_not_call    // suppressed — never call again
+}
+
+enum ProspectDisposition {
+  demo_booked
+  callback_requested
+  not_interested
+  no_answer
+  voicemail
+  wrong_number
+  bad_fit
+  gatekeeper_blocked
+  do_not_call
+}
+
+model Prospect {
+  id               String   @id @default(cuid())
+  // --- Sourcing --------------------------------------------------------
+  source           String              // "google_places" | "csv" | "manual"
+  externalId       String?             // e.g. Google Places place_id
+  businessName     String
+  vertical         Vertical
+  phone            String?             // E.164
+  website          String?
+  address          String?
+  city             String?
+  region           String?             // state / province
+  postalCode       String?
+  country          String   @default("US")
+  timezone         String   @default("America/Los_Angeles")
+  lat              Float?
+  lng              Float?
+  rating           Float?              // Google rating, 0–5
+  reviewsCount     Int?
+  ownerName        String?
+  // --- Qualification ---------------------------------------------------
+  status           ProspectStatus @default(new)
+  score            Int?                // 0–100 fit score from the qualifier
+  qualificationNote String? @db.Text
+  disposition      ProspectDisposition?
+  doNotCall        Boolean  @default(false)
+  // --- Contact tracking ------------------------------------------------
+  attempts         Int      @default(0)
+  lastContactedAt  DateTime?
+  // --- Demo (set when an SDR call books one) ---------------------------
+  demoAt           DateTime?
+  demoContactName  String?
+  demoContactEmail String?
+  targets          OutreachTarget[]
+  calls            OutreachCall[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@unique([source, externalId])
+  @@index([status, vertical])
+  @@index([phone])
+}
+
+model OutreachCampaign {
+  id             String   @id @default(cuid())
+  name           String
+  status         CampaignStatus @default(draft)
+  // Plain-English goal, pitch, and offer — injected into the SDR system prompt.
+  goal           String   @db.Text
+  pitch          String   @db.Text
+  offer          String?  @db.Text
+  repName        String   @default("Alex")   // the name the AI rep introduces itself with
+  // Targeting filter captured at create time, JSON-encoded.
+  filterDef      Json?
+  // Pacing & compliance.
+  quietStartHour Int      @default(20)
+  quietEndHour   Int      @default(9)
+  ratePerMinute  Int      @default(2)
+  maxAttempts    Int      @default(3)
+  callerId       String?              // E.164 we dial from (display label)
+  startsAt       DateTime?
+  completedAt    DateTime?
+  targets        OutreachTarget[]
+  calls          OutreachCall[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@index([status])
+}
+
+model OutreachTarget {
+  id            String   @id @default(cuid())
+  campaignId    String
+  prospectId    String
+  status        CampaignTargetStatus @default(pending)
+  attempts      Int      @default(0)
+  lastAttemptAt DateTime?
+  nextAttemptAt DateTime?            // earliest time to (re)try — set for callbacks/retries
+  outcomeNote   String?  @db.Text
+  campaign      OutreachCampaign @relation(fields: [campaignId], references: [id])
+  prospect      Prospect @relation(fields: [prospectId], references: [id])
+  calls         OutreachCall[]
+  createdAt     DateTime @default(now())
+  @@unique([campaignId, prospectId])
+  @@index([campaignId, status])
+}
+
+model OutreachCall {
+  id               String   @id @default(cuid())
+  prospectId       String
+  campaignId       String?
+  targetId         String?
+  vapiCallId       String?  @unique
+  direction        CallDirection @default(outbound)
+  status           String   @default("in_progress")   // in_progress | completed | failed
+  disposition      ProspectDisposition?
+  fromNumber       String
+  toNumber         String
+  startedAt        DateTime @default(now())
+  endedAt          DateTime?
+  durationSec      Int?
+  recordingUrl     String?
+  summary          String?  @db.Text
+  transcript       String?  @db.Text
+  cost             Float?
+  // Demo booked on this call, if any.
+  demoAt           DateTime?
+  demoContactName  String?
+  demoContactEmail String?
+  prospect         Prospect @relation(fields: [prospectId], references: [id])
+  campaign         OutreachCampaign? @relation(fields: [campaignId], references: [id])
+  target           OutreachTarget?   @relation(fields: [targetId], references: [id])
+  turns            OutreachTurn[]
+  toolCalls        OutreachToolCall[]
+  createdAt        DateTime @default(now())
+  @@index([prospectId, startedAt])
+  @@index([campaignId, startedAt])
+}
+
+model OutreachTurn {
+  id        String   @id @default(cuid())
+  callId    String
+  role      TurnRole
+  text      String   @db.Text
+  startedAt DateTime @default(now())
+  call      OutreachCall @relation(fields: [callId], references: [id])
+  @@index([callId, startedAt])
+}
+
+model OutreachToolCall {
+  id        String   @id @default(cuid())
+  callId    String
+  toolName  String
+  input     Json
+  output    Json
+  isError   Boolean  @default(false)
+  latencyMs Int
+  createdAt DateTime @default(now())
+  call      OutreachCall @relation(fields: [callId], references: [id])
+  @@index([callId, createdAt])
+}
+
+// Do-not-call suppression list. Checked before every outbound dial.
+model SuppressionEntry {
+  id        String   @id @default(cuid())
+  phone     String   @unique          // E.164
+  reason    String                    // opted_out | complaint | wrong_number | manual
+  note      String?
+  createdAt DateTime @default(now())
+}

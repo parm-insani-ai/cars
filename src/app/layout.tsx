@@ -30,7 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <NavProgress />
         <div className="min-h-screen flex">
-          <Sidebar setupComplete={setupComplete()} />
+          <Sidebar setupComplete={setupComplete()} showOutreach={user.role === "admin"} />
           <div className="flex-1 flex flex-col min-w-0">
             <Topbar
               user={{

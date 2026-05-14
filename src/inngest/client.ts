@@ -10,4 +10,6 @@ export type Events = {
   "appointment/booked": { data: { appointmentId: string } };
   "appointment/no_show": { data: { appointmentId: string } };
   "followup/scheduled": { data: { followUpId: string } };
+  // GTM / outreach engine
+  "outreach/prospects.sourced": { data: { prospectIds: string[] } };
 };
