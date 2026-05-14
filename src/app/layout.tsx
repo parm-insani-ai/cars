@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
+import { NavProgress } from "@/components/NavProgress";
 import { getCurrentUser } from "@/lib/auth";
 import { setupComplete } from "@/lib/integrations";
 
@@ -16,7 +17,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   if (!user) {
     return (
       <html lang="en">
-        <body><main className="min-h-screen">{children}</main></body>
+        <body>
+          <NavProgress />
+          <main className="min-h-screen">{children}</main>
+        </body>
       </html>
     );
   }
@@ -24,6 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body>
+        <NavProgress />
         <div className="min-h-screen flex">
           <Sidebar setupComplete={setupComplete()} />
           <div className="flex-1 flex flex-col min-w-0">
