@@ -19,7 +19,7 @@ export default async function DemoPage() {
     : "Can I book a massage with Sara on Friday afternoon?";
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <div>
         <h1 className="page-title">Try the agent</h1>
         <p className="page-sub">

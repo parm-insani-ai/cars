@@ -11,7 +11,7 @@ export default async function HoursPage() {
     orderBy: { dayOfWeek: "asc" },
   });
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <div>
         <h1 className="page-title">Business hours</h1>
         <p className="page-sub">The agent only offers appointment times that fall within these hours.</p>

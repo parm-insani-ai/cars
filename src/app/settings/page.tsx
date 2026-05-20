@@ -16,7 +16,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: { 
   const googleStatus = searchParams?.google;
 
   return (
-    <div className="space-y-8 max-w-3xl">
+    <div className="space-y-8">
       <div>
         <h1 className="page-title">Settings</h1>
         <p className="page-sub">Connect your phone provider, payments, and calendar. Configure how the agent identifies your business.</p>

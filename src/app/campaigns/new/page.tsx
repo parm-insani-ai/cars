@@ -11,7 +11,7 @@ export default async function NewCampaignPage() {
     where: { businessId: user.businessId, smsConsent: true },
   });
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <div>
         <h1 className="page-title">Create campaign</h1>
         <p className="page-sub">

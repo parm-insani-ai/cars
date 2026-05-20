@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export default async function NewOutreachCampaignPage() {
   const qualifiedCount = await prisma.prospect.count({ where: { status: "qualified" } });
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <div>
         <h1 className="page-title">Create outreach campaign</h1>
         <p className="page-sub">

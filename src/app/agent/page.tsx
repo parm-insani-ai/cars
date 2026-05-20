@@ -15,7 +15,7 @@ export default async function AgentPage() {
   if (!business.agentConfig) return <div>Agent isn't configured yet. Re-run the seed.</div>;
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <div>
         <h1 className="page-title">Voice agent</h1>
         <p className="page-sub">How your agent sounds, what it's allowed to do, and where to transfer when it needs a human.</p>

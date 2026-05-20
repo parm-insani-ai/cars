@@ -40,7 +40,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 vertical: user.business.vertical,
               }}
             />
-            <main className="flex-1 p-8 max-w-7xl w-full mx-auto">{children}</main>
+            <main className="flex-1 p-8 w-full">{children}</main>
           </div>
         </div>
       </body>

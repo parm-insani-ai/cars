@@ -11,7 +11,7 @@ export default async function KnowledgePage() {
     orderBy: { title: "asc" },
   });
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <div>
         <h1 className="page-title">Knowledge base</h1>
         <p className="page-sub">
