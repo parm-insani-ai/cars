@@ -2,14 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
-const VERTICALS = [
-  { value: "dealership", label: "Dealerships" },
-  { value: "service_shop", label: "Auto service shops" },
-  { value: "wellness", label: "Wellness / med spas" },
-] as const;
-
-type Vertical = (typeof VERTICALS)[number]["value"];
+import { CATEGORY_GROUPS, type CategoryGroup } from "@/outreach/categories";
 
 export function NewOutreachCampaignForm({ qualifiedCount }: { qualifiedCount: number }) {
   const router = useRouter();
@@ -18,11 +11,11 @@ export function NewOutreachCampaignForm({ qualifiedCount }: { qualifiedCount: nu
   const [state, setState] = useState({
     name: "",
     repName: "Alex",
-    goal: "Introduce Frontdesk, find out if they miss inbound calls, and book a 15-minute demo.",
+    goal: "Introduce the AI receptionist, find out if they miss inbound calls, and book a 15-minute demo.",
     pitch:
-      "Frontdesk is an AI phone receptionist that answers every call, books appointments straight into your calendar, and follows up on missed calls — so you never lose a customer to a ringing phone. It sounds natural, works 24/7, and sets up in a day.",
+      "It's an AI phone receptionist that answers every call, books appointments straight into your calendar, and follows up on missed calls — so you never lose a customer to a ringing phone. It sounds natural, works 24/7, and sets up in a day.",
     offer: "First 14 days free, no card required.",
-    verticals: ["service_shop"] as Vertical[],
+    categoryGroups: CATEGORY_GROUPS.map(g => g.id) as CategoryGroup[],
     minScore: 60,
     quietStartHour: 20,
     quietEndHour: 9,
@@ -30,10 +23,12 @@ export function NewOutreachCampaignForm({ qualifiedCount }: { qualifiedCount: nu
     maxAttempts: 3,
   });
 
-  function toggleVertical(v: Vertical) {
+  function toggleGroup(g: CategoryGroup) {
     setState(s => ({
       ...s,
-      verticals: s.verticals.includes(v) ? s.verticals.filter(x => x !== v) : [...s.verticals, v],
+      categoryGroups: s.categoryGroups.includes(g)
+        ? s.categoryGroups.filter(x => x !== g)
+        : [...s.categoryGroups, g],
     }));
     setPreviewCount(null);
   }
@@ -62,7 +57,7 @@ export function NewOutreachCampaignForm({ qualifiedCount }: { qualifiedCount: nu
     if (j.campaignId) router.push(`/outreach/campaigns/${j.campaignId}`);
   }
 
-  const canSubmit = state.name.trim() && state.pitch.trim() && state.verticals.length > 0;
+  const canSubmit = state.name.trim() && state.pitch.trim() && state.categoryGroups.length > 0;
 
   return (
     <div className="space-y-4">
@@ -75,7 +70,7 @@ export function NewOutreachCampaignForm({ qualifiedCount }: { qualifiedCount: nu
       </div>
 
       <Section title="Campaign name" hint="Internal label.">
-        <input className="input w-full" value={state.name} onChange={e => setState({ ...state, name: e.target.value })} placeholder="Austin auto shops — Q2" />
+        <input className="input w-full" value={state.name} onChange={e => setState({ ...state, name: e.target.value })} placeholder="Halifax home services — spring" />
       </Section>
 
       <Section title="AI rep name" hint="The name the AI sales rep introduces itself with on the call.">
@@ -94,21 +89,21 @@ export function NewOutreachCampaignForm({ qualifiedCount }: { qualifiedCount: nu
         <input className="input w-full" value={state.offer} onChange={e => setState({ ...state, offer: e.target.value })} />
       </Section>
 
-      <Section title="Who to call" hint="Qualified prospects in these verticals, at or above this fit score.">
+      <Section title="Who to call" hint="Qualified prospects in these business types, at or above this fit score.">
         <div className="flex flex-wrap gap-2 mb-3">
-          {VERTICALS.map(v => (
+          {CATEGORY_GROUPS.map(g => (
             <button
-              key={v.value}
+              key={g.id}
               type="button"
-              onClick={() => toggleVertical(v.value)}
+              onClick={() => toggleGroup(g.id)}
               className={
                 "px-3 py-1.5 rounded-lg text-sm border " +
-                (state.verticals.includes(v.value)
+                (state.categoryGroups.includes(g.id)
                   ? "bg-ink text-white border-ink"
                   : "bg-white border-surface-border hover:bg-surface-sub")
               }
             >
-              {v.label}
+              {g.label}
             </button>
           ))}
         </div>
@@ -125,7 +120,7 @@ export function NewOutreachCampaignForm({ qualifiedCount }: { qualifiedCount: nu
         </div>
       </Section>
 
-      <Section title="Quiet hours" hint="The rep never calls during these hours — evaluated in each prospect's own timezone. 24-hour clock.">
+      <Section title="Quiet hours" hint="The rep never calls during these hours (Halifax / Atlantic time). 24-hour clock.">
         <div className="flex items-center gap-2 text-sm">
           <span>Quiet from</span>
           <input type="number" min={0} max={23} className="input w-20" value={state.quietStartHour} onChange={e => setState({ ...state, quietStartHour: Number(e.target.value) })} />
@@ -148,7 +143,7 @@ export function NewOutreachCampaignForm({ qualifiedCount }: { qualifiedCount: nu
       </Section>
 
       <div className="flex items-center gap-3 pt-2">
-        <button className="btn-secondary" onClick={preview} disabled={busy || state.verticals.length === 0}>
+        <button className="btn-secondary" onClick={preview} disabled={busy || state.categoryGroups.length === 0}>
           {busy ? "Counting…" : "Preview audience"}
         </button>
         {previewCount != null && (

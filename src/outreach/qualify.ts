@@ -1,5 +1,6 @@
 import { anthropic, MODELS } from "@/ai/client";
 import { prisma } from "@/lib/prisma";
+import { categoryLabel } from "./categories";
 import type Anthropic from "@anthropic-ai/sdk";
 
 // Qualifier: scores a freshly-sourced prospect for fit before we ever dial it.
@@ -8,12 +9,14 @@ import type Anthropic from "@anthropic-ai/sdk";
 // can't be reached, so sourcing never silently strands prospects as `new`.
 
 const QUALIFY_SYSTEM =
-  `You qualify small businesses as sales prospects for "Frontdesk", an AI phone receptionist ` +
-  `that answers calls, books appointments, and follows up. Good fits are real, established ` +
-  `local SMBs in auto (dealerships, repair shops) or wellness (med spas, salons, clinics) that ` +
-  `likely take inbound phone calls and have enough volume to miss some. Poor fits: businesses ` +
-  `with almost no reviews (likely closed/fake), national chains, or anything outside those verticals. ` +
-  `Output ONLY JSON: {"score": <0-100 integer>, "qualified": <boolean>, "note": "<one sentence why>"}.`;
+  `You qualify Halifax-area small businesses as sales prospects for an AI phone receptionist ` +
+  `that answers calls, books appointments, and follows up. Good fits are real, established local ` +
+  `businesses that take a lot of inbound phone calls and run on appointments or quotes — home ` +
+  `services (plumbers, electricians, HVAC, contractors), personal-care businesses (spas, salons, ` +
+  `barbers, massage, fitness studios), and auto & local retail (repair shops, dealerships, pet ` +
+  `grooming). Poor fits: businesses with almost no reviews (likely closed or fake), national ` +
+  `chains, and regulated healthcare (doctors, dentists, medical clinics) — we deliberately avoid ` +
+  `those. Output ONLY JSON: {"score": <0-100 integer>, "qualified": <boolean>, "note": "<one sentence why>"}.`;
 
 type QualifyResult = { score: number; qualified: boolean; note: string };
 
@@ -23,7 +26,7 @@ export async function qualifyProspect(prospectId: string): Promise<QualifyResult
 
   const facts = [
     `Name: ${p.businessName}`,
-    `Vertical: ${p.vertical}`,
+    `Category: ${categoryLabel(p.category)}`,
     p.city || p.region ? `Location: ${[p.city, p.region].filter(Boolean).join(", ")}` : null,
     p.rating != null ? `Google rating: ${p.rating} (${p.reviewsCount ?? 0} reviews)` : "No rating data",
     p.phone ? "Has a public phone number" : "No phone number on file",

@@ -12,7 +12,7 @@ const CreateOrPreviewBody = z.object({
   pitch: z.string(),
   offer: z.string().optional(),
   repName: z.string().min(1).max(40),
-  verticals: z.array(z.enum(["dealership", "service_shop", "wellness"])).min(1),
+  categoryGroups: z.array(z.enum(["home_services", "wellness", "auto_retail"])).min(1),
   minScore: z.number().int().min(0).max(100),
   quietStartHour: z.number().int().min(0).max(23),
   quietEndHour: z.number().int().min(0).max(23),
@@ -20,12 +20,12 @@ const CreateOrPreviewBody = z.object({
   maxAttempts: z.number().int().min(1).max(10),
 });
 
-// Prospects eligible for a campaign: qualified, on-vertical, scored high enough,
-// reachable, and not already suppressed/won/lost.
+// Prospects eligible for a campaign: qualified, in one of the chosen business
+// groups, scored high enough, reachable, and not already suppressed/won/lost.
 function audienceWhere(b: z.infer<typeof CreateOrPreviewBody>): Prisma.ProspectWhereInput {
   return {
     status: "qualified",
-    vertical: { in: b.verticals },
+    categoryGroup: { in: b.categoryGroups },
     score: { gte: b.minScore },
     phone: { not: null },
     doNotCall: false,
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
         quietEndHour: b.quietEndHour,
         ratePerMinute: b.ratePerMinute,
         maxAttempts: b.maxAttempts,
-        filterDef: { verticals: b.verticals, minScore: b.minScore } as any,
+        filterDef: { categoryGroups: b.categoryGroups, minScore: b.minScore } as any,
         status: "draft",
       },
     });

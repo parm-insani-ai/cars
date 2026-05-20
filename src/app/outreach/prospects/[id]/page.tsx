@@ -7,8 +7,8 @@ import {
   prospectStatusLabel,
   dispositionLabel,
   dispositionChip,
-  verticalLabel,
 } from "@/lib/labels";
+import { categoryLabel, groupLabel } from "@/outreach/categories";
 import { ProspectActions } from "./ProspectActions";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +33,7 @@ export default async function ProspectDetail({ params }: { params: { id: string 
         <div>
           <h1 className="page-title">{prospect.businessName}</h1>
           <p className="page-sub">
-            {verticalLabel[prospect.vertical] ?? prospect.vertical}
+            {categoryLabel(prospect.category)} · {groupLabel(prospect.categoryGroup)}
             {prospect.city || prospect.region ? ` · ${[prospect.city, prospect.region].filter(Boolean).join(", ")}` : ""}
           </p>
         </div>

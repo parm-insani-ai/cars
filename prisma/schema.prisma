@@ -577,7 +577,10 @@ model Prospect {
   source           String              // "google_places" | "csv" | "manual"
   externalId       String?             // e.g. Google Places place_id
   businessName     String
-  vertical         Vertical
+  // Free-form small-business category — NOT the customer product's Vertical.
+  // See src/outreach/categories.ts for the catalog.
+  category         String              // catalog id, e.g. "plumber", "day_spa"
+  categoryGroup    String              // "home_services" | "wellness" | "auto_retail"
   phone            String?             // E.164
   website          String?
   address          String?
@@ -609,7 +612,7 @@ model Prospect {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   @@unique([source, externalId])
-  @@index([status, vertical])
+  @@index([status, categoryGroup])
   @@index([phone])
 }
 

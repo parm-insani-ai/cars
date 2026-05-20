@@ -2,18 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { sourceProspects, googlePlacesAvailable, inferTimezone } from "@/outreach/sourcing/google-places";
+import {
+  sourceProspects,
+  googlePlacesAvailable,
+  type SourcedProspect,
+} from "@/outreach/sourcing/google-places";
+import { HRM_TIMEZONE } from "@/outreach/categories";
 import { inngest } from "@/inngest/client";
 
-// Source SMB prospects for the GTM engine. Pulls from Google Places (or mock
-// data when no key is set), upserts them onto the prospect island, and kicks
-// off qualification. Admin-gated like the rest of /outreach.
+// Source Halifax small-business prospects for the GTM engine. Runs a sweep
+// across the chosen business categories x HRM communities, pulling from
+// Google Places (or deterministic mock data when no key is set), upserts the
+// results onto the prospect island, and kicks off qualification.
 
 const Body = z.object({
-  vertical: z.enum(["dealership", "service_shop", "wellness"]),
-  location: z.string().min(2).max(120),
-  limit: z.number().int().min(1).max(20),
+  categories: z.array(z.string()).min(1).max(30),
+  areas: z.array(z.string()).min(1).max(12),
+  perQuery: z.number().int().min(1).max(20),
 });
+
+// Each category x area pair is one Places search. Cap the sweep so a single
+// click can't fire hundreds of API calls.
+const MAX_SEARCHES = 80;
 
 export async function POST(req: NextRequest) {
   const user = await requireUser();
@@ -21,23 +31,41 @@ export async function POST(req: NextRequest) {
 
   const parsed = Body.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "bad_request" }, { status: 400 });
-  const { vertical, location, limit } = parsed.data;
+  const { categories, areas, perQuery } = parsed.data;
 
-  let sourced;
-  try {
-    sourced = await sourceProspects({ vertical, location, limit });
-  } catch (err) {
-    return NextResponse.json(
-      { error: "source_failed", detail: err instanceof Error ? err.message : String(err) },
-      { status: 502 },
-    );
+  const combos: Array<{ categoryId: string; area: string }> = [];
+  for (const c of categories) for (const a of areas) combos.push({ categoryId: c, area: a });
+  const truncated = combos.length > MAX_SEARCHES;
+  const run = combos.slice(0, MAX_SEARCHES);
+
+  const sourced: SourcedProspect[] = [];
+  const errors: string[] = [];
+  for (const combo of run) {
+    try {
+      const batch = await sourceProspects({
+        categoryId: combo.categoryId,
+        area: combo.area,
+        limit: perQuery,
+      });
+      sourced.push(...batch);
+    } catch (err) {
+      errors.push(`${combo.categoryId} @ ${combo.area}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
+
+  // De-dupe within this run before touching the DB.
+  const seen = new Set<string>();
+  const unique = sourced.filter(s => {
+    const key = `${s.source}:${s.externalId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   const newIds: string[] = [];
   let imported = 0;
   let skipped = 0;
-  for (let i = 0; i < sourced.length; i++) {
-    const s = sourced[i];
+  for (const s of unique) {
     const existing = await prisma.prospect.findUnique({
       where: { source_externalId: { source: s.source, externalId: s.externalId } },
     });
@@ -46,37 +74,24 @@ export async function POST(req: NextRequest) {
       continue;
     }
     const created = await prisma.prospect.create({
-      data: {
-        source: s.source,
-        externalId: s.externalId,
-        businessName: s.businessName,
-        vertical: s.vertical,
-        phone: s.phone,
-        website: s.website,
-        address: s.address,
-        city: s.city,
-        region: s.region,
-        postalCode: s.postalCode,
-        country: s.country,
-        timezone: inferTimezone(s, i),
-        lat: s.lat,
-        lng: s.lng,
-        rating: s.rating,
-        reviewsCount: s.reviewsCount,
-        status: "new",
-      },
+      data: { ...s, timezone: HRM_TIMEZONE, status: "new" },
     });
     newIds.push(created.id);
     imported++;
   }
 
   if (newIds.length > 0) {
-    await inngest.send({ name: "outreach/prospects.sourced", data: { prospectIds: newIds } }).catch(() => undefined);
+    await inngest
+      .send({ name: "outreach/prospects.sourced", data: { prospectIds: newIds } })
+      .catch(() => undefined);
   }
 
   return NextResponse.json({
     imported,
     skipped,
+    searches: run.length,
+    truncated,
     mock: !googlePlacesAvailable(),
+    errors: errors.slice(0, 5),
   });
 }

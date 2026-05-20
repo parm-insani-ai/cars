@@ -1,16 +1,17 @@
 import { env } from "@/lib/env";
-import type { Vertical } from "@prisma/client";
+import { categoryById, type ProspectCategory } from "@/outreach/categories";
 
-// Lead sourcing: find SMB prospects in a vertical + geography to sell Frontdesk
-// to. Uses the Google Places API (New) Text Search. When no API key is set we
-// fall back to deterministic synthetic prospects so the whole engine — sourcing,
-// qualification, dialing, demo booking — runs end-to-end in mock mode.
+// Lead sourcing: find Halifax small businesses to sell the AI receptionist to.
+// Searches the Google Places API (New) Text Search by business category +
+// HRM community. When no API key is set we fall back to deterministic
+// synthetic prospects so the whole engine runs end-to-end in mock mode.
 
 export type SourcedProspect = {
   source: "google_places";
   externalId: string;
   businessName: string;
-  vertical: Vertical;
+  category: string;        // catalog id
+  categoryGroup: string;   // home_services | wellness | auto_retail
   phone: string | null;
   website: string | null;
   address: string | null;
@@ -24,24 +25,19 @@ export type SourcedProspect = {
   reviewsCount: number | null;
 };
 
-// What to type into Places search for each vertical we sell into.
-const VERTICAL_QUERY: Record<Vertical, string> = {
-  dealership: "car dealership",
-  service_shop: "auto repair shop",
-  wellness: "med spa",
-};
-
 export function googlePlacesAvailable(): boolean {
   return Boolean(env.GOOGLE_PLACES_API_KEY);
 }
 
 export async function sourceProspects(args: {
-  vertical: Vertical;
-  location: string; // free-text, e.g. "Austin, TX"
+  categoryId: string;
+  area: string; // an HRM community, e.g. "Dartmouth, NS"
   limit: number;
 }): Promise<SourcedProspect[]> {
+  const category = categoryById(args.categoryId);
+  if (!category) throw new Error(`Unknown category: ${args.categoryId}`);
   const limit = Math.min(20, Math.max(1, args.limit));
-  if (!googlePlacesAvailable()) return mockProspects({ ...args, limit });
+  if (!googlePlacesAvailable()) return mockProspects(category, args.area, limit);
 
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
@@ -61,8 +57,9 @@ export async function sourceProspects(args: {
       ].join(","),
     },
     body: JSON.stringify({
-      textQuery: `${VERTICAL_QUERY[args.vertical]} in ${args.location}`,
+      textQuery: `${category.query} in ${args.area}`,
       maxResultCount: limit,
+      regionCode: "CA",
     }),
   });
   if (!res.ok) {
@@ -70,10 +67,10 @@ export async function sourceProspects(args: {
   }
   const j: any = await res.json();
   const places: any[] = j.places ?? [];
-  return places.map(p => mapPlace(p, args.vertical)).filter((p): p is SourcedProspect => p !== null);
+  return places.map(p => mapPlace(p, category)).filter((p): p is SourcedProspect => p !== null);
 }
 
-function mapPlace(p: any, vertical: Vertical): SourcedProspect | null {
+function mapPlace(p: any, category: ProspectCategory): SourcedProspect | null {
   const id: string | undefined = p.id;
   const name: string | undefined = p.displayName?.text;
   if (!id || !name) return null;
@@ -84,14 +81,15 @@ function mapPlace(p: any, vertical: Vertical): SourcedProspect | null {
     source: "google_places",
     externalId: id,
     businessName: name,
-    vertical,
+    category: category.id,
+    categoryGroup: category.group,
     phone: normalizePhone(p.internationalPhoneNumber),
     website: p.websiteUri ?? null,
     address: p.formattedAddress ?? null,
     city: comp("locality") ?? comp("postal_town"),
     region: comp("administrative_area_level_1"),
     postalCode: comp("postal_code"),
-    country: comp("country") ?? "US",
+    country: comp("country") ?? "CA",
     lat: p.location?.latitude ?? null,
     lng: p.location?.longitude ?? null,
     rating: typeof p.rating === "number" ? p.rating : null,
@@ -99,7 +97,7 @@ function mapPlace(p: any, vertical: Vertical): SourcedProspect | null {
   };
 }
 
-// Best-effort E.164 normalization. Places returns numbers like "+1 512-555-0142".
+// Best-effort E.164 normalization. Places returns numbers like "+1 902-555-0142".
 function normalizePhone(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const digits = raw.replace(/[^\d+]/g, "");
@@ -111,53 +109,41 @@ function normalizePhone(raw: unknown): string | null {
 }
 
 // --- Mock mode ----------------------------------------------------------
-// Deterministic synthetic prospects so the engine is fully exercisable with
-// zero third-party keys. Names/numbers are obviously fake.
+// Deterministic synthetic Halifax prospects so the engine is fully usable
+// with zero third-party keys. Names/numbers are obviously fake (902 = the
+// Halifax area code).
 
-const MOCK_NAMES: Record<Vertical, string[]> = {
-  dealership: ["Summit Auto Group", "Riverside Motors", "Crown City Cars", "Hilltop Auto Sales", "Bayline Automotive", "Greenfield Motors"],
-  service_shop: ["Precision Auto Care", "Anytown Tire & Brake", "Hometown Garage", "Apex Service Center", "Cornerstone Auto Repair", "Lighthouse Mechanics"],
-  wellness: ["Serenity Med Spa", "Bloom Wellness Studio", "Stillwater Spa", "Radiance Skin & Body", "Harbor Wellness Collective", "Lotus Day Spa"],
-};
-
-const MOCK_TIMEZONES = [
-  "America/Los_Angeles",
-  "America/Denver",
-  "America/Chicago",
-  "America/New_York",
+const MOCK_PREFIXES = [
+  "Atlantic", "Harbour City", "Maritime", "Bluenose", "Citadel", "Peninsula",
+  "East Coast", "Northwood", "Bedford Basin", "Spring Garden", "Quinpool",
+  "Armdale", "Fairview", "Seaport",
 ];
 
-function mockProspects(args: { vertical: Vertical; location: string; limit: number }): SourcedProspect[] {
-  const names = MOCK_NAMES[args.vertical];
+function mockProspects(category: ProspectCategory, area: string, limit: number): SourcedProspect[] {
+  const city = area.split(",")[0]?.trim() || area;
+  const areaSlug = area.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const out: SourcedProspect[] = [];
-  for (let i = 0; i < args.limit; i++) {
-    const name = names[i % names.length] + (i >= names.length ? ` ${Math.floor(i / names.length) + 1}` : "");
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  for (let i = 0; i < limit; i++) {
+    const prefix = MOCK_PREFIXES[(i * 5 + category.id.length) % MOCK_PREFIXES.length];
+    const name = `${prefix} ${category.mockNoun}`;
     out.push({
       source: "google_places",
-      externalId: `mock:${args.vertical}:${slug}:${args.location.toLowerCase().replace(/\W+/g, "-")}`,
+      externalId: `mock:${category.id}:${areaSlug}:${i}`,
       businessName: name,
-      vertical: args.vertical,
-      phone: `+1555${String(1000000 + i * 7919).slice(0, 7)}`,
-      website: `https://example.com/${slug}`,
-      address: `${100 + i * 13} Main St, ${args.location}`,
-      city: args.location.split(",")[0]?.trim() ?? args.location,
-      region: args.location.split(",")[1]?.trim() ?? null,
+      category: category.id,
+      categoryGroup: category.group,
+      phone: `+1902${String(5550000 + i * 137 + category.id.length * 911).slice(0, 7)}`,
+      website: `https://example.com/${category.id}-${areaSlug}-${i}`,
+      address: `${100 + i * 17} Main St, ${city}, NS`,
+      city,
+      region: "NS",
       postalCode: null,
-      country: "US",
+      country: "CA",
       lat: null,
       lng: null,
-      rating: Number((3.4 + ((i * 37) % 16) / 10).toFixed(1)),
-      reviewsCount: 12 + ((i * 53) % 400),
+      rating: Number((3.6 + ((i * 37) % 14) / 10).toFixed(1)),
+      reviewsCount: 8 + ((i * 53 + category.id.length * 17) % 340),
     });
   }
   return out;
-}
-
-// Picked up by the dispatcher / prospect detail to know which timezone to honor
-// quiet hours in. Real Places sourcing doesn't return a timezone in the basic
-// field set, so we spread mock prospects across a few for realism.
-export function inferTimezone(p: SourcedProspect, index: number): string {
-  void p;
-  return MOCK_TIMEZONES[index % MOCK_TIMEZONES.length];
 }
