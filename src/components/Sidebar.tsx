@@ -30,6 +30,28 @@ const ITEMS: Item[] = [
 
 export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boolean; showOutreach?: boolean }) {
   const pathname = usePathname() ?? "";
+
+  // The operator (GTM admin) only needs the outreach tools — none of the
+  // customer-facing modules (calls, appointments, customers, services, ...).
+  if (showOutreach) {
+    return (
+      <aside className="w-60 flex-none border-r border-surface-border bg-white min-h-screen p-3 hidden md:flex md:flex-col">
+        <div className="mb-4 px-2 flex items-center gap-2">
+          <Logo />
+          <span className="font-semibold tracking-tight">Frontdesk GTM</span>
+        </div>
+        <Section title="Halifax outreach">
+          {ITEMS.filter(i => i.section === "growth").map(i => (
+            <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} />
+          ))}
+        </Section>
+        <div className="mt-auto pt-4 px-2 text-[11px] text-ink-muted">
+          Operator console · {new Date().getFullYear()}
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside className="w-60 flex-none border-r border-surface-border bg-white min-h-screen p-3 hidden md:flex md:flex-col">
       <div className="mb-4 px-2 flex items-center gap-2">
@@ -56,14 +78,6 @@ export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boole
           />
         ))}
       </Section>
-
-      {showOutreach && (
-        <Section title="Growth (internal)">
-          {ITEMS.filter(i => i.section === "growth").map(i => (
-            <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} />
-          ))}
-        </Section>
-      )}
 
       <div className="mt-auto pt-4 px-2 text-[11px] text-ink-muted">
         Powered by Claude · {new Date().getFullYear()}
