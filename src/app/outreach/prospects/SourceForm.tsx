@@ -48,10 +48,10 @@ export function SourceForm() {
     setResult(
       `Imported ${j.imported} new prospect${j.imported === 1 ? "" : "s"}` +
         (j.skipped ? `, skipped ${j.skipped} already on file` : "") +
-        ` (ran ${j.searches} searches)` +
-        (j.truncated ? " — sweep was capped; run again to go deeper" : "") +
-        (j.mock ? ". Mock data — set GOOGLE_PLACES_API_KEY for real Halifax listings" : "") +
-        ". Qualification runs in the background.",
+        ` (ran ${j.searches} searches).` +
+        (j.truncated ? " Sweep was capped — run again to go deeper." : "") +
+        (j.mock ? " Mock data — set GOOGLE_PLACES_API_KEY for real Halifax listings." : "") +
+        " Scoring the prospects now — refresh this page in a minute to see fit scores.",
     );
     router.refresh();
   }

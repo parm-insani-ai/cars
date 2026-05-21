@@ -8,12 +8,13 @@ import {
   type SourcedProspect,
 } from "@/outreach/sourcing/google-places";
 import { HRM_TIMEZONE } from "@/outreach/categories";
-import { inngest } from "@/inngest/client";
+import { qualifyProspect } from "@/outreach/qualify";
 
 // Source Halifax small-business prospects for the GTM engine. Runs a sweep
 // across the chosen business categories x HRM communities, pulling from
 // Google Places (or deterministic mock data when no key is set), upserts the
-// results onto the prospect island, and kicks off qualification.
+// results, then kicks off qualification in the background — no separate
+// worker process required.
 
 const Body = z.object({
   categories: z.array(z.string()).min(1).max(30),
@@ -62,7 +63,6 @@ export async function POST(req: NextRequest) {
     return true;
   });
 
-  const newIds: string[] = [];
   let imported = 0;
   let skipped = 0;
   for (const s of unique) {
@@ -73,18 +73,16 @@ export async function POST(req: NextRequest) {
       skipped++;
       continue;
     }
-    const created = await prisma.prospect.create({
+    await prisma.prospect.create({
       data: { ...s, timezone: HRM_TIMEZONE, status: "new" },
     });
-    newIds.push(created.id);
     imported++;
   }
 
-  if (newIds.length > 0) {
-    await inngest
-      .send({ name: "outreach/prospects.sourced", data: { prospectIds: newIds } })
-      .catch(() => undefined);
-  }
+  // Kick off qualification in the background. The dev server stays alive, so
+  // this keeps running after the response is sent — the operator just refreshes
+  // the Prospects page to watch fit scores appear. No worker process needed.
+  void qualifyPendingProspects();
 
   return NextResponse.json({
     imported,
@@ -94,4 +92,23 @@ export async function POST(req: NextRequest) {
     mock: !googlePlacesAvailable(),
     errors: errors.slice(0, 5),
   });
+}
+
+// Scores every prospect still awaiting a score (newly sourced plus any
+// leftovers), in small parallel batches so it doesn't hammer the AI API.
+async function qualifyPendingProspects() {
+  try {
+    const pending = await prisma.prospect.findMany({
+      where: { status: "new" },
+      select: { id: true },
+      take: 1000,
+    });
+    const BATCH = 8;
+    for (let i = 0; i < pending.length; i += BATCH) {
+      const slice = pending.slice(i, i + BATCH);
+      await Promise.all(slice.map(p => qualifyProspect(p.id).catch(() => undefined)));
+    }
+  } catch {
+    /* best-effort background work */
+  }
 }
