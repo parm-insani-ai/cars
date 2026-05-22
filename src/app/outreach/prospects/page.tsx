@@ -2,7 +2,14 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { chipClass, prospectStatusChip, prospectStatusLabel } from "@/lib/labels";
-import { categoryLabel, groupLabel, CATEGORY_GROUPS } from "@/outreach/categories";
+import {
+  categoryLabel,
+  groupLabel,
+  categoryById,
+  categoriesInGroup,
+  CATEGORY_GROUPS,
+  type CategoryGroup,
+} from "@/outreach/categories";
 import { SourceForm } from "./SourceForm";
 
 export const dynamic = "force-dynamic";
@@ -20,14 +27,18 @@ const STATUS_FILTERS = [
 export default async function ProspectsPage({
   searchParams,
 }: {
-  searchParams: { status?: string; group?: string };
+  searchParams: { status?: string; group?: string; category?: string };
 }) {
   const status = searchParams.status ?? "all";
-  const group = searchParams.group ?? "all";
+  const category = searchParams.category ?? "all";
+  // The major group is implied by a chosen sub-category.
+  const group =
+    category !== "all" ? categoryById(category)?.group ?? "all" : searchParams.group ?? "all";
 
   const where: Prisma.ProspectWhereInput = {};
   if (status !== "all") where.status = status as any;
-  if (group !== "all") where.categoryGroup = group;
+  if (category !== "all") where.category = category;
+  else if (group !== "all") where.categoryGroup = group;
 
   const prospects = await prisma.prospect.findMany({
     where,
@@ -35,15 +46,23 @@ export default async function ProspectsPage({
     take: 300,
   });
 
-  const qs = (next: { status?: string; group?: string }) => {
+  function href(next: { status?: string; group?: string; category?: string }) {
     const s = next.status ?? status;
-    const g = next.group ?? group;
+    let g = next.group ?? group;
+    let c = next.category ?? category;
+    if (next.group !== undefined) c = "all"; // switching group clears the sub-category
+    if (c !== "all") g = categoryById(c)?.group ?? g;
     const params = new URLSearchParams();
     if (s !== "all") params.set("status", s);
     if (g !== "all") params.set("group", g);
+    if (c !== "all") params.set("category", c);
     const str = params.toString();
     return str ? `/outreach/prospects?${str}` : "/outreach/prospects";
-  };
+  }
+
+  const chip = (active: boolean, small = false) =>
+    (small ? "px-2.5 py-1 rounded-lg text-xs " : "px-3 py-1.5 rounded-lg text-sm ") +
+    (active ? "bg-ink text-white" : "hover:bg-surface-sub text-ink-muted");
 
   return (
     <div className="space-y-5">
@@ -55,49 +74,46 @@ export default async function ProspectsPage({
       <SourceForm />
 
       <div className="space-y-2">
-        <div className="flex items-center gap-1 flex-wrap text-sm">
+        {/* Status */}
+        <div className="flex items-center gap-1 flex-wrap">
           {STATUS_FILTERS.map(f => (
-            <Link
-              key={f.key}
-              href={qs({ status: f.key })}
-              className={
-                "px-3 py-1.5 rounded-lg " +
-                (status === f.key ? "bg-ink text-white" : "hover:bg-surface-sub text-ink")
-              }
-            >
+            <Link key={f.key} href={href({ status: f.key })} className={chip(status === f.key)}>
               {f.label}
             </Link>
           ))}
         </div>
-        <div className="flex items-center gap-1 flex-wrap text-xs">
-          <Link
-            href={qs({ group: "all" })}
-            className={
-              "px-2.5 py-1 rounded-lg " +
-              (group === "all" ? "bg-ink text-white" : "hover:bg-surface-sub text-ink-muted")
-            }
-          >
+
+        {/* Major category */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <Link href={href({ group: "all" })} className={chip(group === "all", true)}>
             All types
           </Link>
           {CATEGORY_GROUPS.map(g => (
-            <Link
-              key={g.id}
-              href={qs({ group: g.id })}
-              className={
-                "px-2.5 py-1 rounded-lg " +
-                (group === g.id ? "bg-ink text-white" : "hover:bg-surface-sub text-ink-muted")
-              }
-            >
+            <Link key={g.id} href={href({ group: g.id })} className={chip(group === g.id, true)}>
               {g.label}
             </Link>
           ))}
         </div>
+
+        {/* Sub-category — only once a major category is chosen */}
+        {group !== "all" && (
+          <div className="flex items-center gap-1 flex-wrap pl-3 border-l-2 border-surface-border">
+            <Link href={href({ category: "all" })} className={chip(category === "all", true)}>
+              All {groupLabel(group).toLowerCase()}
+            </Link>
+            {categoriesInGroup(group as CategoryGroup).map(c => (
+              <Link key={c.id} href={href({ category: c.id })} className={chip(category === c.id, true)}>
+                {c.label}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card overflow-hidden">
         {prospects.length === 0 ? (
           <div className="empty">
-            <div className="empty-title">No prospects here yet</div>
+            <div className="empty-title">No prospects match this filter</div>
             <div className="empty-sub">Use “Find Halifax prospects” above to pull a batch of small businesses to call.</div>
           </div>
         ) : (
