@@ -8,7 +8,7 @@ import {
   type SourcedProspect,
 } from "@/outreach/sourcing/google-places";
 import { HRM_TIMEZONE } from "@/outreach/categories";
-import { qualifyProspect } from "@/outreach/qualify";
+import { rescoreAllProspects } from "@/outreach/qualify";
 
 // Source Halifax small-business prospects for the GTM engine. Runs a sweep
 // across the chosen business categories x HRM communities, pulling from
@@ -79,40 +79,18 @@ export async function POST(req: NextRequest) {
     imported++;
   }
 
-  // Qualification is now a fast deterministic calculation, so run it inline —
-  // scores are ready the moment sourcing finishes. Covers the prospects just
-  // sourced plus any leftovers still awaiting a score.
-  const qualified = await qualifyPendingProspects();
+  // Re-score every prospect (newly sourced plus everything already on file) so
+  // scores always reflect the current rules. Deterministic, so this is cheap.
+  const { scored, qualified } = await rescoreAllProspects();
 
   return NextResponse.json({
     imported,
     skipped,
+    scored,
     qualified,
     searches: run.length,
     truncated,
     mock: !googlePlacesAvailable(),
     errors: errors.slice(0, 5),
   });
-}
-
-// Scores every prospect still awaiting a score, in parallel batches. Returns
-// how many came out qualified.
-async function qualifyPendingProspects(): Promise<number> {
-  let qualified = 0;
-  try {
-    const pending = await prisma.prospect.findMany({
-      where: { status: "new" },
-      select: { id: true },
-      take: 2000,
-    });
-    const BATCH = 16;
-    for (let i = 0; i < pending.length; i += BATCH) {
-      const slice = pending.slice(i, i + BATCH);
-      const results = await Promise.all(slice.map(p => qualifyProspect(p.id).catch(() => null)));
-      qualified += results.filter(r => r?.qualified).length;
-    }
-  } catch {
-    /* best-effort */
-  }
-  return qualified;
 }

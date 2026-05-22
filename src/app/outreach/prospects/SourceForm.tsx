@@ -47,12 +47,26 @@ export function SourceForm() {
     }
     setResult(
       `Imported ${j.imported} new prospect${j.imported === 1 ? "" : "s"}` +
-        (j.skipped ? `, skipped ${j.skipped} already on file` : "") +
-        ` (ran ${j.searches} searches).` +
+        (j.skipped ? `, skipped ${j.skipped} already sourced` : "") +
+        ` (${j.searches} searches).` +
         (j.truncated ? " Sweep was capped — run again to go deeper." : "") +
         (j.mock ? " Mock data — set GOOGLE_PLACES_API_KEY for real Halifax listings." : "") +
-        ` Scored — ${j.qualified ?? 0} qualified as a good fit.`,
+        ` Re-scored all ${j.scored ?? 0} prospect${j.scored === 1 ? "" : "s"} — ${j.qualified ?? 0} qualified.`,
     );
+    router.refresh();
+  }
+
+  async function rescore() {
+    setBusy(true);
+    setResult(null);
+    const res = await fetch("/api/outreach/actions/rescore", { method: "POST" });
+    const j = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setResult("Re-score failed.");
+      return;
+    }
+    setResult(`Re-scored ${j.scored} prospect${j.scored === 1 ? "" : "s"} — ${j.qualified} qualified.`);
     router.refresh();
   }
 
@@ -141,13 +155,18 @@ export function SourceForm() {
         <div className="text-xs text-ink-muted">
           {categories.length} categories x {areas.length} areas = <span className="font-semibold">{searches}</span> searches
         </div>
-        <button
-          className="btn-primary ml-auto"
-          onClick={run}
-          disabled={busy || categories.length === 0 || areas.length === 0}
-        >
-          {busy ? "Sourcing…" : "Source prospects"}
-        </button>
+        <div className="ml-auto flex gap-2">
+          <button className="btn-secondary" onClick={rescore} disabled={busy}>
+            Re-score all
+          </button>
+          <button
+            className="btn-primary"
+            onClick={run}
+            disabled={busy || categories.length === 0 || areas.length === 0}
+          >
+            {busy ? "Sourcing…" : "Source prospects"}
+          </button>
+        </div>
       </div>
 
       {result && <p className="text-sm text-ink-muted">{result}</p>}

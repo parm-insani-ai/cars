@@ -94,8 +94,8 @@ function buildNote(
   return `${tier} (${a.score}/100): ${a.reviews} reviews, ${categoryLabel(a.category)} / ${groupLabel(a.categoryGroup)}${ratingTxt}.${tail}`;
 }
 
-// Scores one prospect and writes the result back. Used by the sourcing sweep
-// and the per-prospect "Re-qualify" action.
+// Scores one prospect and writes the result back. Used by the per-prospect
+// "Re-qualify" action.
 export async function qualifyProspect(prospectId: string): Promise<QualifyResult | null> {
   const p = await prisma.prospect.findUnique({ where: { id: prospectId } });
   if (!p) return null;
@@ -109,4 +109,37 @@ export async function qualifyProspect(prospectId: string): Promise<QualifyResult
     },
   });
   return result;
+}
+
+// Re-scores every prospect that hasn't been actioned yet — i.e. not already in
+// a campaign, contacted, or suppressed. Safe to run repeatedly; scoring is
+// deterministic. Runs after every sourcing sweep and behind the "Re-score all"
+// button, so existing prospects always reflect the current scoring rules.
+export async function rescoreAllProspects(): Promise<{ scored: number; qualified: number }> {
+  const rows = await prisma.prospect.findMany({
+    where: { status: { in: ["new", "qualified", "disqualified"] } },
+    take: 5000,
+  });
+  let qualified = 0;
+  const BATCH = 20;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const slice = rows.slice(i, i + BATCH);
+    await Promise.all(
+      slice.map(async p => {
+        const r = scoreProspect(p);
+        if (r.qualified) qualified++;
+        await prisma.prospect
+          .update({
+            where: { id: p.id },
+            data: {
+              score: r.score,
+              status: r.qualified ? "qualified" : "disqualified",
+              qualificationNote: r.note,
+            },
+          })
+          .catch(() => undefined);
+      }),
+    );
+  }
+  return { scored: rows.length, qualified };
 }
