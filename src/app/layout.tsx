@@ -29,9 +29,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body>
         <NavProgress />
-        <div className="min-h-screen flex">
+        <div className="h-screen flex overflow-hidden">
           <Sidebar setupComplete={setupComplete()} showOutreach={user.role === "admin"} />
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <Topbar
               user={{
                 name: user.name,
@@ -40,7 +40,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 vertical: user.business.vertical,
               }}
             />
-            <main className="flex-1 p-8 w-full">{children}</main>
+            <main className="flex-1 overflow-y-auto p-8 w-full">{children}</main>
           </div>
         </div>
       </body>

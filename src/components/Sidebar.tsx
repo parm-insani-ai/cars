@@ -35,7 +35,7 @@ export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boole
   // customer-facing modules (calls, appointments, customers, services, ...).
   if (showOutreach) {
     return (
-      <aside className="w-60 flex-none border-r border-surface-border bg-white min-h-screen p-3 hidden md:flex md:flex-col">
+      <aside className="w-60 flex-none border-r border-surface-border bg-white h-screen overflow-y-auto p-3 hidden md:flex md:flex-col">
         <div className="mb-4 px-2 flex items-center gap-2">
           <Logo />
           <span className="font-semibold tracking-tight">Frontdesk GTM</span>
