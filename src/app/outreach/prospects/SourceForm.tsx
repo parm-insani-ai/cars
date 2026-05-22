@@ -46,12 +46,10 @@ export function SourceForm() {
       return;
     }
     setResult(
-      `Imported ${j.imported} new prospect${j.imported === 1 ? "" : "s"}` +
-        (j.skipped ? `, skipped ${j.skipped} already sourced` : "") +
-        ` (${j.searches} searches).` +
+      `Imported ${j.imported} new prospect${j.imported === 1 ? "" : "s"} — ${j.qualified ?? 0} qualified.` +
+        (j.skipped ? ` Skipped ${j.skipped} already on file (scores kept).` : "") +
         (j.truncated ? " Sweep was capped — run again to go deeper." : "") +
-        (j.mock ? " Mock data — set GOOGLE_PLACES_API_KEY for real Halifax listings." : "") +
-        ` Re-scored all ${j.scored ?? 0} prospect${j.scored === 1 ? "" : "s"} — ${j.qualified ?? 0} qualified.`,
+        (j.mock ? " Mock data — set GOOGLE_PLACES_API_KEY for real Halifax listings." : ""),
     );
     router.refresh();
   }

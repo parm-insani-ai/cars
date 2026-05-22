@@ -8,7 +8,7 @@ import {
   type SourcedProspect,
 } from "@/outreach/sourcing/google-places";
 import { HRM_TIMEZONE } from "@/outreach/categories";
-import { rescoreAllProspects } from "@/outreach/qualify";
+import { qualifyProspect } from "@/outreach/qualify";
 
 // Source Halifax small-business prospects for the GTM engine. Runs a sweep
 // across the chosen business categories x HRM communities, pulling from
@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
     return true;
   });
 
+  const newIds: string[] = [];
   let imported = 0;
   let skipped = 0;
   for (const s of unique) {
@@ -70,23 +71,31 @@ export async function POST(req: NextRequest) {
       where: { source_externalId: { source: s.source, externalId: s.externalId } },
     });
     if (existing) {
+      // Already on file — leave it (and its score) exactly as-is.
       skipped++;
       continue;
     }
-    await prisma.prospect.create({
+    const created = await prisma.prospect.create({
       data: { ...s, timezone: HRM_TIMEZONE, status: "new" },
     });
+    newIds.push(created.id);
     imported++;
   }
 
-  // Re-score every prospect (newly sourced plus everything already on file) so
-  // scores always reflect the current rules. Deterministic, so this is cheap.
-  const { scored, qualified } = await rescoreAllProspects();
+  // Score ONLY the businesses we just discovered — once. A prospect keeps the
+  // score it was given the first time; it is never re-scored automatically.
+  // (Use the "Re-score all" button if the scoring rules themselves change.)
+  let qualified = 0;
+  const BATCH = 16;
+  for (let i = 0; i < newIds.length; i += BATCH) {
+    const slice = newIds.slice(i, i + BATCH);
+    const results = await Promise.all(slice.map(id => qualifyProspect(id).catch(() => null)));
+    qualified += results.filter(r => r?.qualified).length;
+  }
 
   return NextResponse.json({
     imported,
     skipped,
-    scored,
     qualified,
     searches: run.length,
     truncated,
