@@ -79,14 +79,15 @@ export async function POST(req: NextRequest) {
     imported++;
   }
 
-  // Kick off qualification in the background. The dev server stays alive, so
-  // this keeps running after the response is sent — the operator just refreshes
-  // the Prospects page to watch fit scores appear. No worker process needed.
-  void qualifyPendingProspects();
+  // Qualification is now a fast deterministic calculation, so run it inline —
+  // scores are ready the moment sourcing finishes. Covers the prospects just
+  // sourced plus any leftovers still awaiting a score.
+  const qualified = await qualifyPendingProspects();
 
   return NextResponse.json({
     imported,
     skipped,
+    qualified,
     searches: run.length,
     truncated,
     mock: !googlePlacesAvailable(),
@@ -94,21 +95,24 @@ export async function POST(req: NextRequest) {
   });
 }
 
-// Scores every prospect still awaiting a score (newly sourced plus any
-// leftovers), in small parallel batches so it doesn't hammer the AI API.
-async function qualifyPendingProspects() {
+// Scores every prospect still awaiting a score, in parallel batches. Returns
+// how many came out qualified.
+async function qualifyPendingProspects(): Promise<number> {
+  let qualified = 0;
   try {
     const pending = await prisma.prospect.findMany({
       where: { status: "new" },
       select: { id: true },
-      take: 1000,
+      take: 2000,
     });
-    const BATCH = 8;
+    const BATCH = 16;
     for (let i = 0; i < pending.length; i += BATCH) {
       const slice = pending.slice(i, i + BATCH);
-      await Promise.all(slice.map(p => qualifyProspect(p.id).catch(() => undefined)));
+      const results = await Promise.all(slice.map(p => qualifyProspect(p.id).catch(() => null)));
+      qualified += results.filter(r => r?.qualified).length;
     }
   } catch {
-    /* best-effort background work */
+    /* best-effort */
   }
+  return qualified;
 }

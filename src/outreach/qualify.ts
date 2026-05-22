@@ -1,65 +1,105 @@
-import { anthropic, MODELS } from "@/ai/client";
 import { prisma } from "@/lib/prisma";
-import { categoryLabel } from "./categories";
-import type Anthropic from "@anthropic-ai/sdk";
+import { categoryLabel, groupLabel } from "./categories";
 
-// Qualifier: scores a freshly-sourced prospect for fit before we ever dial it.
-// Cheap model, one call per prospect. Sets a 0–100 score and flips the status
-// to `qualified` or `disqualified`. A heuristic fallback runs if the model
-// can't be reached, so sourcing never silently strands prospects as `new`.
+// Transparent prospect fit score (0-100). Fully deterministic — no AI
+// guesswork, so the number is explainable and actually spreads.
+//
+// It estimates how good an outbound-sales prospect a Halifax business is,
+// from the signals that genuinely differ between businesses:
+//   - review count : proxy for how busy they are (more customers => more
+//                    inbound calls => more MISSED calls). The dominant factor.
+//   - has a phone  : you literally cannot call them otherwise.
+//   - category     : a plumber out on job sites misses far more calls than a
+//                    front-desk business.
+//   - rating       : mild signal they care about customer experience.
+//   - has a website: mild signal of an established, real business.
+//
+// A business with no phone, or with <=2 reviews (likely closed/fake/too new),
+// is disqualified outright regardless of score.
 
-const QUALIFY_SYSTEM =
-  `You qualify Halifax-area small businesses as sales prospects for an AI phone receptionist ` +
-  `that answers calls, books appointments, and follows up. Good fits are real, established local ` +
-  `businesses that take a lot of inbound phone calls and run on appointments or quotes — home ` +
-  `services (plumbers, electricians, HVAC, contractors), personal-care businesses (spas, salons, ` +
-  `barbers, massage, fitness studios), and auto & local retail (repair shops, dealerships, pet ` +
-  `grooming). Poor fits: businesses with almost no reviews (likely closed or fake), national ` +
-  `chains, and regulated healthcare (doctors, dentists, medical clinics) — we deliberately avoid ` +
-  `those. Output ONLY JSON: {"score": <0-100 integer>, "qualified": <boolean>, "note": "<one sentence why>"}.`;
+export type QualifyResult = { score: number; qualified: boolean; note: string };
 
-type QualifyResult = { score: number; qualified: boolean; note: string };
+type ScoreInput = {
+  category: string;
+  categoryGroup: string;
+  phone: string | null;
+  website: string | null;
+  rating: number | null;
+  reviewsCount: number | null;
+};
 
+// Call-miss likelihood by business type (0-15 points).
+const GROUP_POINTS: Record<string, number> = {
+  home_services: 15,
+  auto_retail: 12,
+  wellness: 11,
+};
+
+const QUALIFY_THRESHOLD = 60;
+
+export function scoreProspect(p: ScoreInput): QualifyResult {
+  const hasPhone = Boolean(p.phone);
+  const reviews = p.reviewsCount ?? 0;
+
+  // Review count (0-55) — the dominant signal.
+  let reviewPts = 0;
+  if (reviews >= 200) reviewPts = 55;
+  else if (reviews >= 75) reviewPts = 47;
+  else if (reviews >= 25) reviewPts = 36;
+  else if (reviews >= 10) reviewPts = 24;
+  else if (reviews >= 3) reviewPts = 12;
+
+  // Category (0-15).
+  const categoryPts = GROUP_POINTS[p.categoryGroup] ?? 11;
+
+  // Rating (0-10) — neutral score when there's no rating data.
+  let ratingPts = 4;
+  if (p.rating != null) {
+    if (p.rating >= 4.5) ratingPts = 10;
+    else if (p.rating >= 4.0) ratingPts = 8;
+    else if (p.rating >= 3.0) ratingPts = 5;
+    else ratingPts = 2;
+  }
+
+  // Reachability + legitimacy.
+  const phonePts = hasPhone ? 12 : 0;
+  const websitePts = p.website ? 8 : 0;
+
+  const score = reviewPts + categoryPts + ratingPts + phonePts + websitePts;
+
+  // Hard disqualifiers: unreachable, or almost certainly not a live business.
+  const tooFewReviews = reviews <= 2;
+  const qualified = hasPhone && !tooFewReviews && score >= QUALIFY_THRESHOLD;
+
+  return {
+    score,
+    qualified,
+    note: buildNote({ ...p, hasPhone, reviews, tooFewReviews, score }),
+  };
+}
+
+function buildNote(
+  a: ScoreInput & { hasPhone: boolean; reviews: number; tooFewReviews: boolean; score: number },
+): string {
+  if (!a.hasPhone) return "Disqualified: no phone number on file — there's no way to call them.";
+  if (a.tooFewReviews) {
+    return `Disqualified: only ${a.reviews} review${a.reviews === 1 ? "" : "s"} — likely closed, fake, or too new to be worth a call.`;
+  }
+  const tier = a.score >= 80 ? "Strong fit" : a.score >= QUALIFY_THRESHOLD ? "Fair fit" : "Weak fit";
+  const ratingTxt = a.rating != null ? `, ${a.rating}★` : "";
+  const tail =
+    a.score >= QUALIFY_THRESHOLD
+      ? ""
+      : " — too few call-volume signals to prioritize over busier prospects.";
+  return `${tier} (${a.score}/100): ${a.reviews} reviews, ${categoryLabel(a.category)} / ${groupLabel(a.categoryGroup)}${ratingTxt}.${tail}`;
+}
+
+// Scores one prospect and writes the result back. Used by the sourcing sweep
+// and the per-prospect "Re-qualify" action.
 export async function qualifyProspect(prospectId: string): Promise<QualifyResult | null> {
   const p = await prisma.prospect.findUnique({ where: { id: prospectId } });
   if (!p) return null;
-
-  const facts = [
-    `Name: ${p.businessName}`,
-    `Category: ${categoryLabel(p.category)}`,
-    p.city || p.region ? `Location: ${[p.city, p.region].filter(Boolean).join(", ")}` : null,
-    p.rating != null ? `Google rating: ${p.rating} (${p.reviewsCount ?? 0} reviews)` : "No rating data",
-    p.phone ? "Has a public phone number" : "No phone number on file",
-    p.website ? `Website: ${p.website}` : "No website",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  let result: QualifyResult;
-  try {
-    const client = anthropic();
-    const resp = await client.messages.create({
-      model: MODELS.classify,
-      max_tokens: 200,
-      system: QUALIFY_SYSTEM,
-      messages: [{ role: "user", content: facts }],
-    });
-    const text = resp.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map(b => b.text)
-      .join("");
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("no json");
-    const j = JSON.parse(match[0]);
-    result = {
-      score: clampScore(j.score),
-      qualified: Boolean(j.qualified),
-      note: String(j.note ?? "").slice(0, 280),
-    };
-  } catch {
-    result = heuristicQualify(p.rating, p.reviewsCount, Boolean(p.phone));
-  }
-
+  const result = scoreProspect(p);
   await prisma.prospect.update({
     where: { id: prospectId },
     data: {
@@ -69,29 +109,4 @@ export async function qualifyProspect(prospectId: string): Promise<QualifyResult
     },
   });
   return result;
-}
-
-function clampScore(raw: unknown): number {
-  const n = Math.round(Number(raw));
-  if (!Number.isFinite(n)) return 50;
-  return Math.min(100, Math.max(0, n));
-}
-
-// No-API fallback: a phone number plus a believable review count is most of
-// the signal. Keeps the engine fully usable in mock mode.
-function heuristicQualify(rating: number | null, reviews: number | null, hasPhone: boolean): QualifyResult {
-  let score = 40;
-  if (hasPhone) score += 25;
-  if ((reviews ?? 0) >= 10) score += 20;
-  if ((reviews ?? 0) >= 100) score += 5;
-  if (rating != null && rating >= 3.5) score += 10;
-  score = Math.min(100, score);
-  const qualified = hasPhone && (reviews ?? 0) >= 5;
-  return {
-    score,
-    qualified,
-    note: qualified
-      ? "Heuristic: has a phone line and an established review presence."
-      : "Heuristic: missing a phone number or too few reviews to call confidently.",
-  };
 }

@@ -51,7 +51,7 @@ export function SourceForm() {
         ` (ran ${j.searches} searches).` +
         (j.truncated ? " Sweep was capped — run again to go deeper." : "") +
         (j.mock ? " Mock data — set GOOGLE_PLACES_API_KEY for real Halifax listings." : "") +
-        " Scoring the prospects now — refresh this page in a minute to see fit scores.",
+        ` Scored — ${j.qualified ?? 0} qualified as a good fit.`,
     );
     router.refresh();
   }
