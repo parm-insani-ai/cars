@@ -14,6 +14,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "inngest:dev": "inngest-cli dev",
+    "outreach:setup-vapi": "tsx scripts/setup-outreach-vapi.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

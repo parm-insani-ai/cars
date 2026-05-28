@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { chipClass, prospectStatusChip, prospectStatusLabel, dispositionLabel } from "@/lib/labels";
 import { googlePlacesAvailable } from "@/outreach/sourcing/google-places";
 import { outreachVapiReady } from "@/lib/env";
+import { TestCallCard } from "./TestCallCard";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,8 @@ export default async function OutreachOverview() {
           </ul>
         </div>
       )}
+
+      {outreachVapiReady() && <TestCallCard />}
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Kpi label="Prospects" value={totalProspects} />
