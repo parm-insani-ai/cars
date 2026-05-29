@@ -50,7 +50,7 @@ async function main() {
       url: `${base}/api/outreach/llm`,
       model: "frontdesk-outreach",
     },
-    voice: { provider: "vapi", voiceId: "Elliot" },
+    voice: { provider: "vapi", voiceId: "Paige" },
     transcriber: { provider: "deepgram", model: "nova-2", language: "en" },
     server: { url: `${base}/api/outreach/webhook` },
   };

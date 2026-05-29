@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
         goal: "This is a test call. Introduce the product, give a short natural pitch, and ask if the line sounds clear.",
         pitch: `${env.OUTREACH_COMPANY_NAME} is an AI phone receptionist that answers every call, books appointments, and follows up so a business never misses a customer.`,
         offer: "First 14 days free.",
-        repName: "Alex",
+        repName: "Ava",
       },
     });
   }

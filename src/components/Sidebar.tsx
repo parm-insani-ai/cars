@@ -26,6 +26,7 @@ const ITEMS: Item[] = [
   { href: "/outreach",          label: "GTM overview",  icon: <RocketIcon />, section: "growth" },
   { href: "/outreach/prospects", label: "Prospects",    icon: <TargetIcon />, section: "growth" },
   { href: "/outreach/campaigns", label: "Outreach campaigns", icon: <MegaphoneIcon />, section: "growth" },
+  { href: "/outreach/simulate",  label: "Try the rep",   icon: <PlayIcon />, section: "growth" },
 ];
 
 export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boolean; showOutreach?: boolean }) {

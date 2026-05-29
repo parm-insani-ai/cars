@@ -10,7 +10,7 @@ export function NewOutreachCampaignForm({ qualifiedCount }: { qualifiedCount: nu
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [state, setState] = useState({
     name: "",
-    repName: "Alex",
+    repName: "Ava",
     goal: "Introduce the AI receptionist, find out if they miss inbound calls, and book a 15-minute demo.",
     pitch:
       "It's an AI phone receptionist that answers every call, books appointments straight into your calendar, and follows up on missed calls — so you never lose a customer to a ringing phone. It sounds natural, works 24/7, and sets up in a day.",
