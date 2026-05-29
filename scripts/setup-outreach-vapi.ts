@@ -41,6 +41,11 @@ async function main() {
     process.exit(1);
   }
 
+  // NOTE: voice is deliberately NOT set here. Vapi's voice catalog changes
+  // (legacy voices get retired and rejected on update), so the voice is chosen
+  // in the Vapi dashboard (Assistants -> Voice), which only offers valid ones
+  // and lets you preview. Omitting it here means this script never touches the
+  // voice — it only keeps the call endpoints pointed at the right URL.
   const config = {
     name: `${company} — Outreach SDR`,
     firstMessageMode: "assistant-speaks-first",
@@ -50,7 +55,6 @@ async function main() {
       url: `${base}/api/outreach/llm`,
       model: "frontdesk-outreach",
     },
-    voice: { provider: "vapi", voiceId: "Paige" },
     transcriber: { provider: "deepgram", model: "nova-2", language: "en" },
     server: { url: `${base}/api/outreach/webhook` },
   };
