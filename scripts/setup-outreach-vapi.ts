@@ -49,7 +49,7 @@ async function main() {
   const config = {
     name: `${company} — Outreach SDR`,
     firstMessageMode: "assistant-speaks-first",
-    firstMessage: `Hi there — this is an AI assistant calling on behalf of ${company}. Do you have a quick second?`,
+    firstMessage: `Hi, this is Ava with ${company} — I'll be upfront, I'm an AI. I'm calling about something that quietly costs most small businesses thousands every month. Mind if I take thirty seconds?`,
     model: {
       provider: "custom-llm",
       url: `${base}/api/outreach/llm`,
