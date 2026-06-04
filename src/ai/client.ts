@@ -8,10 +8,11 @@ export function anthropic(): Anthropic {
   return client;
 }
 
-// Model picks. The agent brain runs on Sonnet 4.6 — high-volume, low latency,
-// strong tool-use. Classification/summarization runs on Haiku 4.5.
+// Model picks. The agent brain runs on Haiku 4.5 — about 3x faster to first
+// token than Sonnet, which is what keeps voice conversations from feeling
+// laggy. Quality is plenty for SDR/receptionist back-and-forth.
 export const MODELS = {
-  brain: "claude-sonnet-4-6",
+  brain: "claude-haiku-4-5",
   summarize: "claude-sonnet-4-6",
   classify: "claude-haiku-4-5",
 } as const;
