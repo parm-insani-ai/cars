@@ -34,6 +34,15 @@ export async function runOutreachTurn(args: {
 
   const { messages: priorMessages } = openAIToAnthropic(args.openaiRequest.messages);
 
+  // On outbound calls Vapi speaks first (the static firstMessage), so the
+  // conversation Vapi sends us starts with the assistant's opener. Anthropic
+  // requires the first message to be user — prepend a synthetic "answering
+  // the phone" user turn so the alternation is valid and the model actually
+  // generates a reply (otherwise it silently returns 0 output tokens).
+  if (priorMessages.length === 0 || priorMessages[0].role !== "user") {
+    priorMessages.unshift({ role: "user", content: "(answering the phone) Hello?" });
+  }
+
   const client = anthropic();
   const resp = await client.messages.create({
     model: MODELS.brain,
