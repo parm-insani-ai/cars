@@ -8,6 +8,8 @@ const PUBLIC_PATHS = [
   "/api/voice/llm",
   "/api/voice/webhook",
   "/api/voice/simulate",
+  "/api/outreach/llm",
+  "/api/outreach/webhook",
   "/api/webhooks/sms",
   "/api/webhooks/stripe",
   "/api/auth/google/start",

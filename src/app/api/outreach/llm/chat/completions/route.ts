@@ -3,14 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { runOutreachTurn } from "@/outreach/run";
 import type { OpenAIRequest } from "@/ai/openai-translate";
 
-// Vapi custom-LLM endpoint for the outbound AI sales rep. Separate from the
-// receptionist's /api/voice/llm so the two brains never cross wires.
+// Vapi custom-LLM endpoint for the outbound AI sales rep. Vapi treats the
+// `model.url` we configure as an OpenAI-compatible base URL and POSTs to
+// `<base>/chat/completions`, which is why this route lives at the deeper path.
 //
-// The outreach Vapi assistant is provisioned with this URL and carries
-// `metadata.outreachCallId` (set by the dispatcher when it places the call).
-//
-// SECURITY: callable by Vapi only — restrict by IP allowlist or shared header
-// secret in production. Mock mode accepts all.
+// Carries `metadata.outreachCallId` (set by the dispatcher / test-call route
+// when placing the call) so we can load the prospect + campaign for the turn.
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as OpenAIRequest & {
