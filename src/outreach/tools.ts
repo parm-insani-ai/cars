@@ -187,6 +187,17 @@ async function bookDemo(ctx: OutreachToolContext, input: any): Promise<ToolResul
       .catch(() => undefined);
   }
 
+  // Heads-up SMS to the operator so a human knows about it the second it
+  // lands. Silent if OPERATOR_NOTIFICATION_PHONE isn't configured.
+  if (env.OPERATOR_NOTIFICATION_PHONE) {
+    await smsAdapter()
+      .send({
+        to: env.OPERATOR_NOTIFICATION_PHONE,
+        body: `${env.OUTREACH_COMPANY_NAME} demo booked! ${prospect.businessName} (${prospect.phone ?? "no phone"}) — ${demoAt.toLocaleString()}. Contact: ${input.contact_name ?? "—"}${input.contact_email ? ` <${input.contact_email}>` : ""}.`,
+      })
+      .catch(() => undefined);
+  }
+
   return {
     ok: true,
     content: {

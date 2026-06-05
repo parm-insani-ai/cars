@@ -15,6 +15,9 @@ export const env = {
   VAPI_OUTREACH_PHONE_NUMBER_ID: process.env.VAPI_OUTREACH_PHONE_NUMBER_ID ?? "",
   // Branding for the pitch — what the AI rep calls "us".
   OUTREACH_COMPANY_NAME: process.env.OUTREACH_COMPANY_NAME || "Frontdesk",
+  // Operator's phone (E.164) — pinged via SMS when Ava books a demo so a
+  // human knows about it the moment it happens. Optional; if blank, no SMS.
+  OPERATOR_NOTIFICATION_PHONE: process.env.OPERATOR_NOTIFICATION_PHONE ?? "",
 };
 
 export function requireAnthropic(): string {

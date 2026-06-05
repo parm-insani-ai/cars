@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   "/api/voice/simulate",
   "/api/outreach/llm",
   "/api/outreach/webhook",
+  "/api/health",
   "/api/webhooks/sms",
   "/api/webhooks/stripe",
   "/api/auth/google/start",
