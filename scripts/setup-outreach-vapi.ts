@@ -57,6 +57,14 @@ async function main() {
     },
     transcriber: { provider: "deepgram", model: "nova-2", language: "en" },
     server: { url: `${base}/api/outreach/webhook` },
+    // Snappier turn-taking. End-of-speech is the biggest single source of
+    // perceived lag; lower wait + smart endpointing nearly halves it.
+    silenceTimeoutSeconds: 30,
+    numWordsToInterruptAssistant: 2,
+    startSpeakingPlan: {
+      waitSeconds: 0.2,
+      smartEndpointingPlan: { provider: "vapi" },
+    },
   };
 
   const url = existingId ? `https://api.vapi.ai/assistant/${existingId}` : "https://api.vapi.ai/assistant";
