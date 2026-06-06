@@ -72,7 +72,7 @@ async function handleAssistantRequest(msg: any) {
     assistant: {
       firstMessage: business.agentConfig.greeting,
       voice: { provider: business.agentConfig.voiceProvider, voiceId: business.agentConfig.voiceId },
-      transcriber: { provider: "deepgram", language: business.agentConfig.language },
+      transcriber: { provider: "deepgram", model: "nova-2", language: business.agentConfig.language },
       model: {
         provider: "custom-llm",
         url: `${baseUrl}/api/voice/llm`,
@@ -86,6 +86,13 @@ async function handleAssistantRequest(msg: any) {
         // Tell Vapi to dispatch tool calls to us via the function-call message
         // shape on this same webhook. Vapi forwards tool args as-is.
         functions: [], // tools are declared in our LLM output; Vapi auto-handles dispatch
+      },
+      // Snappy turn-taking — the difference between feeling robotic and human.
+      silenceTimeoutSeconds: 30,
+      numWordsToInterruptAssistant: 2,
+      startSpeakingPlan: {
+        waitSeconds: 0.2,
+        smartEndpointingPlan: { provider: "vapi" },
       },
       metadata: {
         businessId: business.id,

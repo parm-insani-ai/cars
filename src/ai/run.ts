@@ -55,6 +55,14 @@ export async function runAgentTurn(args: {
   // pass through user/assistant/tool turns.
   const { messages: priorMessages } = openAIToAnthropic(args.openaiRequest.messages);
 
+  // Anthropic requires the first message to be user. If we're handed a
+  // conversation that starts with the assistant's greeting (e.g. from the
+  // simulator test page), prepend a synthetic user turn so alternation is
+  // valid and the model actually replies.
+  if (priorMessages.length === 0 || priorMessages[0].role !== "user") {
+    priorMessages.unshift({ role: "user", content: "(call connects)" });
+  }
+
   const client = anthropic();
   const resp = await client.messages.create({
     model: MODELS.brain,
