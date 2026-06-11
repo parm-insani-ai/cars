@@ -4,6 +4,7 @@ import { requireUserOrRedirect } from "@/lib/auth";
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, addDays, formatDistanceToNowStrict, format } from "date-fns";
 import { callOutcomeLabel, callOutcomeChip, chipClass, apptStatusLabel, apptStatusChip } from "@/lib/labels";
 import { listIntegrations } from "@/lib/integrations";
+import { LiveCallStrip } from "@/components/LiveCallStrip";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,14 @@ export default async function Home() {
   const revenueThisWeek = weekRevenueAppts.reduce((s, a) => s + (a.service.priceUsd ?? 0), 0);
   const attentionTotal = pendingDeposits + callbacksNeeded + unconfirmedSoon;
 
+  // Detect a brand-new business so we can show the onboarding panel.
+  const [servicesCount, providersCount, hoursCount] = await Promise.all([
+    prisma.service.count({ where: { businessId } }),
+    prisma.provider.count({ where: { businessId } }),
+    prisma.businessHours.count({ where: { businessId } }),
+  ]);
+  const isFreshBusiness = servicesCount === 0 && providersCount === 0 && hoursCount === 0;
+
   const integrations = listIntegrations();
   const optionalConnected = integrations.filter(i => !i.required && i.connected).length;
   const optionalTotal = integrations.filter(i => !i.required).length;
@@ -88,6 +97,23 @@ export default async function Home() {
           <span className="text-base">▶</span> Try the agent
         </Link>
       </div>
+
+      <LiveCallStrip />
+
+      {/* Onboarding banner for brand-new businesses -------------------- */}
+      {isFreshBusiness && (
+        <div className="card p-5 border-l-4 border-lane bg-lane/5">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="font-semibold">Welcome to Frontdesk — let's set you up.</h2>
+              <p className="text-sm text-ink-muted mt-1">
+                Five quick steps and your AI receptionist is ready to answer calls. Takes about 5 minutes.
+              </p>
+            </div>
+            <Link href="/onboard" className="btn-primary flex-none">Start setup →</Link>
+          </div>
+        </div>
+      )}
 
       {/* KPI strip ---------------------------------------------------- */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
