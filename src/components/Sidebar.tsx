@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+
+// Lightweight custom-event channel so the Topbar's hamburger can ask the
+// Sidebar to slide in on mobile without a React context or a state library.
+const MOBILE_NAV_OPEN_EVENT = "mobile-nav-open";
 
 type Item = { href: string; label: string; icon: ReactNode; section: "work" | "data" | "ops" | "growth" };
 
@@ -33,58 +37,108 @@ const ITEMS: Item[] = [
 export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boolean; showOutreach?: boolean }) {
   const pathname = usePathname() ?? "";
 
+  // Mobile drawer state — Topbar's hamburger dispatches a custom event, we
+  // listen for it. Closes automatically on navigate or overlay tap.
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    const handler = () => setMobileOpen(true);
+    window.addEventListener(MOBILE_NAV_OPEN_EVENT, handler);
+    return () => window.removeEventListener(MOBILE_NAV_OPEN_EVENT, handler);
+  }, []);
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+  const close = () => setMobileOpen(false);
+
+  const asideCls =
+    "w-60 flex-none border-r border-surface-border bg-white h-screen overflow-y-auto p-3 flex flex-col " +
+    "md:static md:translate-x-0 " +
+    "fixed inset-y-0 left-0 z-50 transition-transform " +
+    (mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0");
+
   // The operator (GTM admin) only needs the outreach tools — none of the
   // customer-facing modules (calls, appointments, customers, services, ...).
   if (showOutreach) {
     return (
-      <aside className="w-60 flex-none border-r border-surface-border bg-white h-screen overflow-y-auto p-3 hidden md:flex md:flex-col">
-        <div className="mb-4 px-2 flex items-center gap-2">
-          <Logo />
-          <span className="font-semibold tracking-tight">Frontdesk GTM</span>
-        </div>
-        <Section title="Halifax outreach">
-          {ITEMS.filter(i => i.section === "growth").map(i => (
-            <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} />
-          ))}
-        </Section>
-        <div className="mt-auto pt-4 px-2 text-[11px] text-ink-muted">
-          Operator console · {new Date().getFullYear()}
-        </div>
-      </aside>
+      <>
+        <MobileOverlay open={mobileOpen} onClose={close} />
+        <aside className={asideCls}>
+          <BrandHeader title="Frontdesk GTM" onClose={close} />
+          <Section title="Halifax outreach">
+            {ITEMS.filter(i => i.section === "growth").map(i => (
+              <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} onClick={close} />
+            ))}
+          </Section>
+          <div className="mt-auto pt-4 px-2 text-[11px] text-ink-muted">
+            Operator console · {new Date().getFullYear()}
+          </div>
+        </aside>
+      </>
     );
   }
 
   return (
-    <aside className="w-60 flex-none border-r border-surface-border bg-white min-h-screen p-3 hidden md:flex md:flex-col">
-      <div className="mb-4 px-2 flex items-center gap-2">
-        <Logo />
-        <span className="font-semibold tracking-tight">Frontdesk</span>
-      </div>
-      <Section title="Today">
-        {ITEMS.filter(i => i.section === "work").map(i => (
-          <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} />
-        ))}
-      </Section>
-      <Section title="Your business">
-        {ITEMS.filter(i => i.section === "data").map(i => (
-          <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} />
-        ))}
-      </Section>
-      <Section title="Set up & insights">
-        {ITEMS.filter(i => i.section === "ops").map(i => (
-          <NavLink
-            key={i.href}
-            {...i}
-            active={isActive(pathname, i.href)}
-            badge={i.href === "/settings" && setupComplete === false ? "Setup" : undefined}
-          />
-        ))}
-      </Section>
+    <>
+      <MobileOverlay open={mobileOpen} onClose={close} />
+      <aside className={asideCls}>
+        <BrandHeader title="Frontdesk" onClose={close} />
+        <Section title="Today">
+          {ITEMS.filter(i => i.section === "work").map(i => (
+            <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} onClick={close} />
+          ))}
+        </Section>
+        <Section title="Your business">
+          {ITEMS.filter(i => i.section === "data").map(i => (
+            <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} onClick={close} />
+          ))}
+        </Section>
+        <Section title="Set up & insights">
+          {ITEMS.filter(i => i.section === "ops").map(i => (
+            <NavLink
+              key={i.href}
+              {...i}
+              active={isActive(pathname, i.href)}
+              onClick={close}
+              badge={i.href === "/settings" && setupComplete === false ? "Setup" : undefined}
+            />
+          ))}
+        </Section>
 
-      <div className="mt-auto pt-4 px-2 text-[11px] text-ink-muted">
-        Powered by Claude · {new Date().getFullYear()}
-      </div>
-    </aside>
+        <div className="mt-auto pt-4 px-2 text-[11px] text-ink-muted">
+          Powered by Claude · {new Date().getFullYear()}
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function MobileOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <button
+      aria-label="Close menu"
+      onClick={onClose}
+      className="md:hidden fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm"
+    />
+  );
+}
+
+function BrandHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <div className="mb-4 px-2 flex items-center justify-between gap-2">
+      <span className="flex items-center gap-2">
+        <Logo />
+        <span className="font-semibold tracking-tight">{title}</span>
+      </span>
+      <button
+        type="button"
+        aria-label="Close menu"
+        onClick={onClose}
+        className="md:hidden text-ink-muted hover:text-ink p-1"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
   );
 }
 
@@ -102,10 +156,11 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function NavLink({ href, label, icon, active, badge }: Item & { active: boolean; badge?: string }) {
+function NavLink({ href, label, icon, active, badge, onClick }: Item & { active: boolean; badge?: string; onClick?: () => void }) {
   return (
     <Link
       href={href}
+      onClick={onClick}
       className={
         "flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors " +
         (active

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUserOrRedirect } from "@/lib/auth";
-import { startOfDay, endOfDay, formatDistanceToNowStrict, format } from "date-fns";
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, addDays, formatDistanceToNowStrict, format } from "date-fns";
 import { callOutcomeLabel, callOutcomeChip, chipClass, apptStatusLabel, apptStatusChip } from "@/lib/labels";
 import { listIntegrations } from "@/lib/integrations";
 
@@ -13,6 +13,9 @@ export default async function Home() {
 
   const today = startOfDay(new Date());
   const todayEnd = endOfDay(new Date());
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+  const nextDay = addDays(new Date(), 1);
 
   const [
     callsToday,
@@ -22,6 +25,10 @@ export default async function Home() {
     customerCount,
     recentCalls,
     todaysAppts,
+    weekRevenueAppts,
+    pendingDeposits,
+    callbacksNeeded,
+    unconfirmedSoon,
   ] = await Promise.all([
     prisma.callSession.count({ where: { businessId, startedAt: { gte: today } } }),
     prisma.callSession.count({ where: { businessId, startedAt: { gte: today }, outcome: "booked" } }),
@@ -40,7 +47,27 @@ export default async function Home() {
       orderBy: { scheduledAt: "asc" },
       take: 5,
     }),
+    prisma.appointment.findMany({
+      where: {
+        businessId,
+        scheduledAt: { gte: weekStart, lte: weekEnd },
+        status: { in: ["confirmed", "reminded", "arrived", "completed"] },
+      },
+      include: { service: { select: { priceUsd: true } } },
+    }),
+    prisma.appointment.count({ where: { businessId, depositStatus: "pending" } }),
+    prisma.followUp.count({ where: { businessId, kind: "missed_call_callback", status: "scheduled" } }),
+    prisma.appointment.count({
+      where: {
+        businessId,
+        status: "pending",
+        scheduledAt: { gte: new Date(), lte: nextDay },
+      },
+    }),
   ]);
+
+  const revenueThisWeek = weekRevenueAppts.reduce((s, a) => s + (a.service.priceUsd ?? 0), 0);
+  const attentionTotal = pendingDeposits + callbacksNeeded + unconfirmedSoon;
 
   const integrations = listIntegrations();
   const optionalConnected = integrations.filter(i => !i.required && i.connected).length;
@@ -63,16 +90,48 @@ export default async function Home() {
       </div>
 
       {/* KPI strip ---------------------------------------------------- */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Kpi label="Calls today" value={callsToday} sub={callsToday === 0 ? "Quiet so far" : undefined} />
         <Kpi label="Booked today" value={callsBooked} sub={bookingRate != null ? `${bookingRate}% of calls` : undefined} accent="cool" />
+        <Kpi label="Revenue this week" value={fmtUsd(revenueThisWeek)} sub="confirmed bookings" accent="cool" />
         <Kpi label="Appointments today" value={apptsToday} />
-        <Kpi label="Upcoming appointments" value={apptsUpcoming} />
+        <Kpi label="Upcoming" value={apptsUpcoming} />
       </div>
+
+      {/* Attention queue --------------------------------------------- */}
+      {attentionTotal > 0 && (
+        <div className="card p-5 border-l-4 border-lane-warm bg-lane-warm/5">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="font-semibold flex items-center gap-2">
+                <span className="text-lane-warm">●</span> Needs your attention
+                <span className="text-xs text-ink-muted font-normal">({attentionTotal})</span>
+              </h2>
+              <ul className="mt-3 text-sm space-y-1.5">
+                {unconfirmedSoon > 0 && (
+                  <li>
+                    · <Link href="/appointments" className="text-lane hover:underline">{unconfirmedSoon} appointment{unconfirmedSoon === 1 ? "" : "s"}</Link> in the next 24 hours still unconfirmed
+                  </li>
+                )}
+                {pendingDeposits > 0 && (
+                  <li>
+                    · <Link href="/appointments" className="text-lane hover:underline">{pendingDeposits} deposit{pendingDeposits === 1 ? "" : "s"}</Link> awaiting payment
+                  </li>
+                )}
+                {callbacksNeeded > 0 && (
+                  <li>
+                    · <Link href="/follow-ups" className="text-lane hover:underline">{callbacksNeeded} missed-call callback{callbacksNeeded === 1 ? "" : "s"}</Link> queued up
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Setup nudge -------------------------------------------------- */}
       {needsSetup.length > 0 && (
-        <div className="card p-5 flex items-start justify-between gap-4">
+        <div className="card p-5 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h2 className="font-semibold">Finish setting up Frontdesk</h2>
             <p className="text-sm text-ink-muted mt-1">
@@ -159,6 +218,12 @@ function greet() {
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
   return "Good evening";
+}
+
+function fmtUsd(amount: number): string {
+  if (!amount) return "$0";
+  if (amount >= 1000) return `$${(amount / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return `$${Math.round(amount).toLocaleString()}`;
 }
 
 function Kpi({ label, value, sub, accent }: { label: string; value: number | string; sub?: string; accent?: "cool" | "warm" | "hot" }) {
