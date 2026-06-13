@@ -9,24 +9,26 @@ import { setupComplete } from "@/lib/integrations";
 export const metadata: Metadata = {
   metadataBase: new URL("https://insani.ai"),
   title: {
-    default: "Insani AI — AI receptionist for Halifax small businesses",
+    default: "Insani AI — AI for Service Businesses",
     template: "%s · Insani AI",
   },
   description:
-    "Stop missing calls. Insani's AI receptionist answers every call, books appointments, and follows up — built for small businesses in Halifax and across Nova Scotia.",
+    "Insani's AI employee answers every call, books appointments, follows up, and carries out tasks specific to your business.",
   keywords: [
+    "AI for service businesses",
+    "AI employee",
     "AI receptionist",
     "AI phone answering",
-    "Halifax small business",
     "appointment booking",
     "virtual receptionist Canada",
+    "Halifax",
     "Nova Scotia",
     "voice AI",
   ],
   openGraph: {
-    title: "Insani AI — Never miss a call again",
+    title: "Insani AI — AI for Service Businesses",
     description:
-      "AI receptionist that answers, books, and follows up — built for Halifax small businesses.",
+      "Insani's AI employee answers every call, books appointments, follows up, and carries out tasks specific to your business.",
     url: "https://insani.ai",
     siteName: "Insani AI",
     locale: "en_CA",
@@ -34,9 +36,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Insani AI — Never miss a call again",
+    title: "Insani AI — AI for Service Businesses",
     description:
-      "AI receptionist that answers, books, and follows up — built for Halifax small businesses.",
+      "Insani's AI employee answers every call, books appointments, follows up, and carries out tasks specific to your business.",
   },
   robots: {
     index: true,
