@@ -123,14 +123,16 @@ enum Role {
 }
 
 model User {
-  id         String   @id @default(cuid())
-  businessId String
-  email      String   @unique
-  name       String
-  role       Role     @default(staff)
-  active     Boolean  @default(true)
-  business   Business @relation(fields: [businessId], references: [id])
-  createdAt  DateTime @default(now())
+  id           String   @id @default(cuid())
+  businessId   String
+  email        String   @unique
+  name         String
+  role         Role     @default(staff)
+  active       Boolean  @default(true)
+  // bcrypt hash. Null for legacy/seeded demo users until they set a password.
+  passwordHash String?
+  business     Business @relation(fields: [businessId], references: [id])
+  createdAt    DateTime @default(now())
 }
 
 // --- Service catalog ------------------------------------------------------

@@ -1,9 +1,11 @@
 import { PrismaClient, Vertical } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { packFor } from "../src/packs";
 
 const prisma = new PrismaClient();
 
 const SEED_ACCOUNT_NAME = "insani Demo Account";
+const DEMO_PASSWORD_HASH = bcrypt.hashSync("demo1234", 10);
 
 const businesses: Array<{
   vertical: Vertical;
@@ -129,13 +131,14 @@ async function main() {
       });
     }
 
-    // One staff user per business so the login picker has options.
+    // One staff user per business — login locally with password "demo1234".
     await prisma.user.create({
       data: {
         businessId: business.id,
         email: `${b.vertical}@demo.insani.local`,
         name: roleLeadName(b.vertical),
         role: "owner",
+        passwordHash: DEMO_PASSWORD_HASH,
       },
     });
 
@@ -164,6 +167,7 @@ async function main() {
         email: "operator@demo.insani.local",
         name: "Operator (GTM admin)",
         role: "admin",
+        passwordHash: DEMO_PASSWORD_HASH,
       },
     });
   }

@@ -1,39 +1,31 @@
-import { prisma } from "@/lib/prisma";
-import { LoginPicker } from "./LoginPicker";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { LoginForm } from "./LoginForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  const users = await prisma.user.findMany({
-    where: { active: true },
-    include: { business: true },
-    orderBy: [{ business: { name: "asc" } }, { role: "asc" }, { name: "asc" }],
-  });
-
+  const user = await getCurrentUser();
+  if (user) redirect("/dashboard");
   return (
-    <div className="max-w-md mx-auto py-12 space-y-6">
-      <div className="card p-6 space-y-4">
-        <div>
-          <h1 className="text-xl font-semibold">Sign in to insani</h1>
-          <p className="text-sm text-ink-muted mt-1">
-            Dev mode — pick a user. In production this would be WorkOS SSO.
-          </p>
+    <div className="min-h-screen flex flex-col">
+      <header className="px-6 py-5 border-b border-surface-border">
+        <Link href="/" className="font-semibold tracking-tight">insani</Link>
+      </header>
+      <div className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-sm space-y-6">
+          <div>
+            <h1 className="text-2xl font-semibold">Sign in to insani</h1>
+            <p className="text-sm text-ink-muted mt-1">
+              Don&apos;t have an account?{" "}
+              <Link href="/signup" className="text-lane hover:underline">
+                Create one
+              </Link>
+            </p>
+          </div>
+          <LoginForm />
         </div>
-        {users.length === 0 ? (
-          <p className="text-sm">
-            No users yet. Run <code className="font-mono">npm run db:seed</code>.
-          </p>
-        ) : (
-          <LoginPicker
-            users={users.map(u => ({
-              id: u.id,
-              name: u.name,
-              role: u.role,
-              business: u.business.name,
-              vertical: u.business.vertical,
-            }))}
-          />
-        )}
       </div>
     </div>
   );

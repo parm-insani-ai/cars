@@ -2,9 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth";
 
 const PUBLIC_PATHS = [
+  "/",
   "/login",
+  "/signup",
   "/api/auth/login",
   "/api/auth/logout",
+  "/api/auth/signup",
   "/api/voice/llm",
   "/api/voice/webhook",
   "/api/voice/simulate",
