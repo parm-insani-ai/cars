@@ -61,7 +61,7 @@ export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boole
       <>
         <MobileOverlay open={mobileOpen} onClose={close} />
         <aside className={asideCls}>
-          <BrandHeader title="Frontdesk GTM" onClose={close} />
+          <BrandHeader title="insani GTM" onClose={close} />
           <Section title="Halifax outreach">
             {ITEMS.filter(i => i.section === "growth").map(i => (
               <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} onClick={close} />
@@ -79,7 +79,7 @@ export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boole
     <>
       <MobileOverlay open={mobileOpen} onClose={close} />
       <aside className={asideCls}>
-        <BrandHeader title="Frontdesk" onClose={close} />
+        <BrandHeader title="insani" onClose={close} />
         <Section title="Today">
           {ITEMS.filter(i => i.section === "work").map(i => (
             <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} onClick={close} />

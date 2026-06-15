@@ -1,7 +1,7 @@
 import { Inngest } from "inngest";
 
 export const inngest = new Inngest({
-  id: "frontdesk",
+  id: "insani",
 });
 
 export type Events = {

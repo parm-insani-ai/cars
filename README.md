@@ -1,4 +1,4 @@
-# Frontdesk
+# insani
 
 Voice AI phone receptionist for small businesses. Answers calls, books appointments, handles follow-ups. Built for three verticals: **dealerships, service shops, and wellness** (med spas, salons, dental, chiro, fitness).
 

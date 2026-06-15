@@ -105,7 +105,7 @@ export default async function Home() {
         <div className="card p-5 border-l-4 border-lane bg-lane/5">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <h2 className="font-semibold">Welcome to Frontdesk — let's set you up.</h2>
+              <h2 className="font-semibold">Welcome to insani — let's set you up.</h2>
               <p className="text-sm text-ink-muted mt-1">
                 Five quick steps and your AI receptionist is ready to answer calls. Takes about 5 minutes.
               </p>
@@ -159,7 +159,7 @@ export default async function Home() {
       {needsSetup.length > 0 && (
         <div className="card p-5 flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="font-semibold">Finish setting up Frontdesk</h2>
+            <h2 className="font-semibold">Finish setting up insani</h2>
             <p className="text-sm text-ink-muted mt-1">
               {optionalConnected === 0
                 ? "Connect your phone provider and text messaging to take real calls and send confirmations."

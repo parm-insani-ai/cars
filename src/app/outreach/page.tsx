@@ -32,7 +32,7 @@ export default async function OutreachOverview() {
         <div>
           <h1 className="page-title">Go-to-market engine</h1>
           <p className="page-sub">
-            Source SMB prospects, qualify them with AI, and have an AI sales rep call them to book demos of Frontdesk.
+            Source SMB prospects, qualify them with AI, and have an AI sales rep call them to book demos of insani.
           </p>
         </div>
         <div className="flex gap-2">

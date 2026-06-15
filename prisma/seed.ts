@@ -3,7 +3,7 @@ import { packFor } from "../src/packs";
 
 const prisma = new PrismaClient();
 
-const SEED_ACCOUNT_NAME = "Frontdesk Demo Account";
+const SEED_ACCOUNT_NAME = "insani Demo Account";
 
 const businesses: Array<{
   vertical: Vertical;
@@ -133,7 +133,7 @@ async function main() {
     await prisma.user.create({
       data: {
         businessId: business.id,
-        email: `${b.vertical}@demo.frontdesk.local`,
+        email: `${b.vertical}@demo.insani.local`,
         name: roleLeadName(b.vertical),
         role: "owner",
       },
@@ -161,7 +161,7 @@ async function main() {
     await prisma.user.create({
       data: {
         businessId: firstBusinessId,
-        email: "operator@demo.frontdesk.local",
+        email: "operator@demo.insani.local",
         name: "Operator (GTM admin)",
         role: "admin",
       },

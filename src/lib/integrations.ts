@@ -57,7 +57,7 @@ export function listIntegrations(): IntegrationStatus[] {
       connected: Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET),
       detail: process.env.GOOGLE_OAUTH_CLIENT_ID
         ? "OAuth configured. Click 'Connect Google' below to authorize this business's calendar."
-        : "Without it, appointments live in Frontdesk only. Connect to sync with Google Calendar — the agent will avoid double-booking automatically.",
+        : "Without it, appointments live in insani only. Connect to sync with Google Calendar — the agent will avoid double-booking automatically.",
       envVars: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "PUBLIC_BASE_URL"],
       helpUrl: "https://console.cloud.google.com",
     },

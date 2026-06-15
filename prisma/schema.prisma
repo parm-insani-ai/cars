@@ -1,4 +1,4 @@
-// Frontdesk — Voice AI phone receptionist for small businesses.
+// insani — Voice AI phone receptionist for small businesses.
 //
 // Multi-tenant: every domain row is scoped to a Business.
 // Three verticals share one model: dealership, service_shop, wellness.
@@ -544,7 +544,7 @@ model SmsToolCall {
 
 // --- GTM / outbound sales engine (internal tooling) ---------------------
 // NOT part of the customer-facing product. This is how WE find prospective
-// SMB customers and call them with an AI sales rep to sell Frontdesk itself.
+// SMB customers and call them with an AI sales rep to sell insani itself.
 // Deliberately kept on its own data island — no Business/Customer relations —
 // so internal sales tooling can never leak into a tenant's data.
 

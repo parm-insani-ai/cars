@@ -80,7 +80,7 @@ export async function runAgentTurn(args: {
     messages: priorMessages,
   });
 
-  const openaiResp = anthropicToOpenAIResponse(resp, args.openaiRequest.model ?? "frontdesk-agent");
+  const openaiResp = anthropicToOpenAIResponse(resp, args.openaiRequest.model ?? "insani-agent");
 
   // Log: persist turn text + AI eval row. We do NOT call tools here — Vapi
   // dispatches tool calls back to /api/voice/tools/* via our endpoints.

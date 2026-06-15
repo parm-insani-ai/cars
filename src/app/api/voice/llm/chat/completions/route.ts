@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
   const id = "chatcmpl_" + callSessionId.slice(-12);
   const created = Math.floor(Date.now() / 1000);
-  const model = body.model ?? "frontdesk-agent";
+  const model = body.model ?? "insani-agent";
   const encoder = new TextEncoder();
 
   function chunk(delta: Record<string, unknown>, finish_reason: string | null = null) {

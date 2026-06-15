@@ -1,6 +1,6 @@
 # Onboarding a business to the AI receptionist
 
-How to take a customer business from "signed up" to "answering real phone calls" with the Frontdesk AI receptionist. ~30 minutes of work per business, mostly clicking.
+How to take a customer business from "signed up" to "answering real phone calls" with the insani AI receptionist. ~30 minutes of work per business, mostly clicking.
 
 ## What you'll set up
 

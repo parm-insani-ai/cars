@@ -52,7 +52,7 @@ export async function runOutreachTurn(args: {
     messages: priorMessages,
   });
 
-  const openaiResp = anthropicToOpenAIResponse(resp, args.openaiRequest.model ?? "frontdesk-outreach");
+  const openaiResp = anthropicToOpenAIResponse(resp, args.openaiRequest.model ?? "insani-outreach");
 
   const assistantText = openaiResp.choices[0].message.content ?? "";
   if (assistantText) {

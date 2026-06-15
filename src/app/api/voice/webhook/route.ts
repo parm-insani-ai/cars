@@ -76,7 +76,7 @@ async function handleAssistantRequest(msg: any) {
       model: {
         provider: "custom-llm",
         url: `${baseUrl}/api/voice/llm`,
-        model: "frontdesk-agent",
+        model: "insani-agent",
         // Vapi reflects metadata on subsequent /llm calls.
         metadata: {
           businessId: business.id,

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 
-export const SESSION_COOKIE = "frontdesk_session";
+export const SESSION_COOKIE = "insani_session";
 
 export async function getCurrentUser() {
   const c = cookies().get(SESSION_COOKIE)?.value;

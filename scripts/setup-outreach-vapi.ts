@@ -53,7 +53,7 @@ async function main() {
     model: {
       provider: "custom-llm",
       url: `${base}/api/outreach/llm`,
-      model: "frontdesk-outreach",
+      model: "insani-outreach",
     },
     transcriber: { provider: "deepgram", model: "nova-2", language: "en" },
     server: { url: `${base}/api/outreach/webhook` },

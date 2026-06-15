@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   const id = "chatcmpl_" + outreachCallId.slice(-12);
   const created = Math.floor(Date.now() / 1000);
-  const model = body.model ?? "frontdesk-outreach";
+  const model = body.model ?? "insani-outreach";
   const encoder = new TextEncoder();
 
   function chunk(delta: Record<string, unknown>, finish_reason: string | null = null) {

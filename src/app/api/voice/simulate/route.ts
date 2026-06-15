@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
         businessId: session.businessId,
         callSessionId: session.id,
         callerPhone: session.fromNumber,
-        openaiRequest: { messages, model: "frontdesk-agent" },
+        openaiRequest: { messages, model: "insani-agent" },
       });
       last = resp;
       const choice = resp.choices[0];

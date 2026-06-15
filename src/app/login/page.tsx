@@ -14,7 +14,7 @@ export default async function LoginPage() {
     <div className="max-w-md mx-auto py-12 space-y-6">
       <div className="card p-6 space-y-4">
         <div>
-          <h1 className="text-xl font-semibold">Sign in to Frontdesk</h1>
+          <h1 className="text-xl font-semibold">Sign in to insani</h1>
           <p className="text-sm text-ink-muted mt-1">
             Dev mode — pick a user. In production this would be WorkOS SSO.
           </p>
