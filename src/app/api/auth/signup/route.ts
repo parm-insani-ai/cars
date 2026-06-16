@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { SESSION_COOKIE } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
+import { isAdminEmail } from "@/lib/env";
 
 const Body = z.object({
   businessName: z.string().min(1).max(120),
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       businessId: business.id,
       email,
       name: parsed.data.yourName,
-      role: "owner",
+      role: isAdminEmail(email) ? "admin" : "owner",
       passwordHash,
     },
   });

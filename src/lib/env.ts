@@ -18,7 +18,18 @@ export const env = {
   // Operator's phone (E.164) — pinged via SMS when Ava books a demo so a
   // human knows about it the moment it happens. Optional; if blank, no SMS.
   OPERATOR_NOTIFICATION_PHONE: process.env.OPERATOR_NOTIFICATION_PHONE ?? "",
+  // Comma-separated emails that get role=admin on signup, and are upgraded
+  // to admin on first login if they already exist. Used to bootstrap the
+  // operator (you) without manual DB edits.
+  ADMIN_EMAILS: (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean),
 };
+
+export function isAdminEmail(email: string): boolean {
+  return env.ADMIN_EMAILS.includes(email.toLowerCase().trim());
+}
 
 export function requireAnthropic(): string {
   if (!env.ANTHROPIC_API_KEY) {
