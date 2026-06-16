@@ -70,28 +70,24 @@ function Hero() {
 }
 
 function SocialProof() {
+  const points = [
+    "Most calls to small businesses go unanswered.",
+    "Most callers won't leave a voicemail.",
+    "Every missed call is a customer that called your competitor next.",
+  ];
   return (
-    <section className="px-6 py-10 border-y border-surface-border bg-surface-sub/40">
-      <div className="max-w-5xl mx-auto text-center space-y-3">
+    <section className="px-6 py-12 border-y border-surface-border bg-surface-sub/40">
+      <div className="max-w-5xl mx-auto text-center space-y-4">
         <p className="text-xs uppercase tracking-wide text-ink-muted font-semibold">
           The cost of missed calls
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-          <Stat value="62%" label="of calls to small businesses go unanswered" />
-          <Stat value="$1,200" label="lost per month by the average service business" />
-          <Stat value="85%" label="of callers won't leave a voicemail" />
+          {points.map(p => (
+            <p key={p} className="text-base text-ink">{p}</p>
+          ))}
         </div>
       </div>
     </section>
-  );
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div>
-      <div className="text-3xl md:text-4xl font-bold text-lane">{value}</div>
-      <div className="text-sm text-ink-muted mt-1">{label}</div>
-    </div>
   );
 }
 
