@@ -89,10 +89,15 @@ async function handleAssistantRequest(msg: any) {
       },
       // Snappy turn-taking — the difference between feeling robotic and human.
       silenceTimeoutSeconds: 30,
-      numWordsToInterruptAssistant: 2,
+      numWordsToInterruptAssistant: 1,
       startSpeakingPlan: {
-        waitSeconds: 0.2,
+        waitSeconds: 0.1,
         smartEndpointingPlan: { provider: "vapi" },
+      },
+      stopSpeakingPlan: {
+        numWords: 0,
+        voiceSeconds: 0.1,
+        backoffSeconds: 1,
       },
       metadata: {
         businessId: business.id,

@@ -60,10 +60,20 @@ async function main() {
     // Snappier turn-taking. End-of-speech is the biggest single source of
     // perceived lag; lower wait + smart endpointing nearly halves it.
     silenceTimeoutSeconds: 30,
-    numWordsToInterruptAssistant: 2,
+    // Interrupt on a single word so Ava actually stops when cut off.
+    numWordsToInterruptAssistant: 1,
     startSpeakingPlan: {
-      waitSeconds: 0.2,
+      // Don't wait long after the caller stops talking — smart endpointing
+      // handles the "still thinking" case; this is just the floor.
+      waitSeconds: 0.1,
       smartEndpointingPlan: { provider: "vapi" },
+    },
+    stopSpeakingPlan: {
+      // Cut the TTS the moment voice activity is detected (100ms threshold),
+      // and only let Ava resume after a brief backoff so cross-talk settles.
+      numWords: 0,
+      voiceSeconds: 0.1,
+      backoffSeconds: 1,
     },
   };
 
