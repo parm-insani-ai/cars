@@ -49,6 +49,9 @@ async function main() {
   const config = {
     name: `${company} — Outreach SDR`,
     firstMessageMode: "assistant-speaks-first",
+    // Let the prospect interrupt the opener — most natural-sounding callers
+    // start talking the moment they realize Ava is a recording.
+    firstMessageInterruptionsEnabled: true,
     firstMessage: `Hi, this is Ava with ${company} — I'll be upfront, I'm an AI and this call is recorded for quality. I know you weren't expecting my call. The reason I'm reaching out is most small businesses around Halifax are quietly losing thousands a month to calls they don't even know they missed. Have you heard of ${company} yet?`,
     model: {
       provider: "custom-llm",
@@ -66,7 +69,9 @@ async function main() {
       // Don't wait long after the caller stops talking — smart endpointing
       // handles the "still thinking" case; this is just the floor.
       waitSeconds: 0.1,
-      smartEndpointingPlan: { provider: "vapi" },
+      // LiveKit's model fires sooner than Vapi's default and feels noticeably
+      // snappier in real calls. Falls back to Vapi if the provider is down.
+      smartEndpointingPlan: { provider: "livekit" },
     },
     stopSpeakingPlan: {
       // Cut the TTS the moment voice activity is detected (100ms threshold),

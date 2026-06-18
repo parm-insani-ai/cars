@@ -71,6 +71,9 @@ async function handleAssistantRequest(msg: any) {
   return NextResponse.json({
     assistant: {
       firstMessage: business.agentConfig.greeting,
+      // Allow callers to interrupt the greeting — most won't, but the ones
+      // who already know the business will appreciate being able to cut in.
+      firstMessageInterruptionsEnabled: true,
       voice: { provider: business.agentConfig.voiceProvider, voiceId: business.agentConfig.voiceId },
       transcriber: { provider: "deepgram", model: "nova-2", language: business.agentConfig.language },
       model: {
@@ -92,7 +95,8 @@ async function handleAssistantRequest(msg: any) {
       numWordsToInterruptAssistant: 1,
       startSpeakingPlan: {
         waitSeconds: 0.1,
-        smartEndpointingPlan: { provider: "vapi" },
+        // LiveKit's endpointing model is faster than Vapi's default.
+        smartEndpointingPlan: { provider: "livekit" },
       },
       stopSpeakingPlan: {
         numWords: 0,
