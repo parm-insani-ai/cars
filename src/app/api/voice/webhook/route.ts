@@ -97,7 +97,18 @@ async function handleAssistantRequest(msg: any) {
         waitSeconds: 0.1,
         // LiveKit's endpointing model is faster than Vapi's default.
         smartEndpointingPlan: { provider: "livekit" },
+        // Aggressive transcription endpointing — fires much sooner than
+        // the Vapi defaults (0.4s/1.5s/0.5s), which is most of the
+        // remaining "stop talking → AI talks" lag.
+        transcriptionEndpointingPlan: {
+          onPunctuationSeconds: 0.1,
+          onNoPunctuationSeconds: 0.8,
+          onNumberSeconds: 0.4,
+        },
       },
+      // Brief acknowledgments while the caller speaks — makes turn-taking
+      // feel snappier without changing actual latency.
+      backchannelingEnabled: true,
       stopSpeakingPlan: {
         numWords: 0,
         voiceSeconds: 0.1,

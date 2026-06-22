@@ -72,7 +72,19 @@ async function main() {
       // LiveKit's model fires sooner than Vapi's default and feels noticeably
       // snappier in real calls. Falls back to Vapi if the provider is down.
       smartEndpointingPlan: { provider: "livekit" },
+      // Aggressive transcription endpointing. Defaults are 0.4s/1.5s/0.5s
+      // which adds noticeable lag. These values fire sooner; LiveKit's
+      // smart endpointing still vetoes mid-thought cuts.
+      transcriptionEndpointingPlan: {
+        onPunctuationSeconds: 0.1,
+        onNoPunctuationSeconds: 0.8,
+        onNumberSeconds: 0.4,
+      },
     },
+    // Backchanneling — Ava interjects brief "mhm" / "okay" while the
+    // caller speaks. Makes the call feel ~300ms snappier even though
+    // raw latency is unchanged.
+    backchannelingEnabled: true,
     stopSpeakingPlan: {
       // Cut the TTS the moment voice activity is detected (100ms threshold),
       // and only let Ava resume after a brief backoff so cross-talk settles.
