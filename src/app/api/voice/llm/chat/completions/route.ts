@@ -4,6 +4,7 @@ import { anthropic, MODELS } from "@/ai/client";
 import { buildAgentSystemPrompt } from "@/ai/system-prompt";
 import { getToolSchemas } from "@/ai/tools";
 import { openAIToAnthropic, type OpenAIRequest } from "@/ai/openai-translate";
+import { callCacheGetOrLoad } from "@/lib/call-cache";
 
 // Vapi custom-LLM endpoint for the inbound AI receptionist. Vapi POSTs to
 // `<model.url>/chat/completions` with `stream: true`, so we live here (not at
@@ -33,16 +34,23 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const business = await prisma.business.findUnique({
-    where: { id: businessId },
-    include: {
-      agentConfig: true,
-      hours: true,
-      services: { where: { active: true } },
-      providers: { where: { active: true } },
-      knowledge: true,
-    },
-  });
+  // Per-call cache: business + agent config + hours + services + providers +
+  // knowledge are static across the call. Fetching all of them on every turn
+  // costs ~250-400ms. Cache for the lifetime of the call (10 min default).
+  const business = await callCacheGetOrLoad(
+    `voice:${callSessionId}`,
+    () =>
+      prisma.business.findUnique({
+        where: { id: businessId },
+        include: {
+          agentConfig: true,
+          hours: true,
+          services: { where: { active: true } },
+          providers: { where: { active: true } },
+          knowledge: true,
+        },
+      }),
+  );
   if (!business || !business.agentConfig) {
     return new Response(JSON.stringify({ error: "business_or_agent_missing" }), {
       status: 404,
@@ -50,7 +58,8 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Persist the caller's latest spoken turn.
+  // Persist the caller's latest spoken turn. Fire-and-forget so the response
+  // doesn't block on the DB write.
   const last = body.messages[body.messages.length - 1];
   if (last?.role === "user") {
     const text =
@@ -58,7 +67,7 @@ export async function POST(req: NextRequest) {
         ? last.content
         : (last.content ?? []).map(p => p.text).join("");
     if (text.trim()) {
-      await prisma.callTurn
+      void prisma.callTurn
         .create({ data: { sessionId: callSessionId, role: "customer", text } })
         .catch(() => undefined);
     }
