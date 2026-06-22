@@ -89,11 +89,16 @@ export async function POST(req: NextRequest) {
     vertical: business.vertical,
   });
 
+  // Cap conversation history. Receptionist calls can run long (booking +
+  // follow-up questions); past ~10 turns of context is rarely needed and
+  // inflates TTFT. Keep last 20 raw messages.
+  const trimmedRaw = body.messages.slice(-20);
+
   // Anthropic requires the first message to be user. Vapi sends us a
   // conversation starting with the assistant's greeting on inbound calls, so
   // prepend a synthetic "phone connects" user turn to keep the alternation
   // valid (otherwise the model returns zero tokens and we go silent).
-  const { messages: priorMessages } = openAIToAnthropic(body.messages);
+  const { messages: priorMessages } = openAIToAnthropic(trimmedRaw);
   if (priorMessages.length === 0 || priorMessages[0].role !== "user") {
     priorMessages.unshift({ role: "user", content: "(call connects)" });
   }

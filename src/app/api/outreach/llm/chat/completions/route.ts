@@ -72,9 +72,16 @@ export async function POST(req: NextRequest) {
   });
   const tools = TOOL_SCHEMAS;
 
+  // Cap conversation history. Calls average 10-15 turns; sending the full
+  // history every turn quadratically inflates input tokens and TTFT on the
+  // long-tail calls. Keep the last 20 raw messages (~10 turns of back-and-
+  // forth) — plenty of context for any sales call. Cached system prompt
+  // is unaffected.
+  const trimmedRaw = body.messages.slice(-20);
+
   // Anthropic requires the first message to be from the user; Vapi sends us a
   // conversation starting with the assistant's opener on outbound calls.
-  const { messages: priorMessages } = openAIToAnthropic(body.messages);
+  const { messages: priorMessages } = openAIToAnthropic(trimmedRaw);
   if (priorMessages.length === 0 || priorMessages[0].role !== "user") {
     priorMessages.unshift({ role: "user", content: "(answering the phone) Hello?" });
   }
