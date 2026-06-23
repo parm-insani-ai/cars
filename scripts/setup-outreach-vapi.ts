@@ -58,7 +58,20 @@ async function main() {
       url: `${base}/api/outreach/llm`,
       model: "insani-outreach",
     },
-    transcriber: { provider: "deepgram", model: "nova-2", language: "en" },
+    // ElevenLabs Flash v2.5 "Rachel" — energetic, warm, very natural female
+    // voice. The gold-standard sales voice in production AI agents. The 1.05x
+    // speed bump makes her sound confident without feeling rushed.
+    voice: {
+      provider: "11labs",
+      voiceId: "21m00Tcm4TlvDq8ikWAM",
+      model: "eleven_flash_v2_5",
+      speed: 1.05,
+      stability: 0.5,
+      similarityBoost: 0.75,
+    },
+    // Nova-3 is Deepgram's latest streaming model — same ~50ms latency as
+    // Nova-2 but better accuracy on accents and noisy audio.
+    transcriber: { provider: "deepgram", model: "nova-3", language: "en" },
     server: { url: `${base}/api/outreach/webhook` },
     // Snappier turn-taking. End-of-speech is the biggest single source of
     // perceived lag; lower wait + smart endpointing nearly halves it.
