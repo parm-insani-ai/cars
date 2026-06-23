@@ -58,12 +58,13 @@ async function main() {
       url: `${base}/api/outreach/llm`,
       model: "insani-outreach",
     },
-    // ElevenLabs Flash v2.5 "Rachel" — energetic, warm, very natural female
-    // voice. The gold-standard sales voice in production AI agents. The 1.05x
-    // speed bump makes her sound confident without feeling rushed.
+    // ElevenLabs Flash v2.5 "Jessica" — warm, conversational female voice
+    // with natural energy. Feels less corporate than Rachel; better fit for
+    // small-business owners who don't want to feel sold to. The 1.05x speed
+    // bump makes her sound confident without feeling rushed.
     voice: {
       provider: "11labs",
-      voiceId: "21m00Tcm4TlvDq8ikWAM",
+      voiceId: "cgSgspJ2msm6clMCkdW9",
       model: "eleven_flash_v2_5",
       speed: 1.05,
       stability: 0.5,
