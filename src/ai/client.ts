@@ -1,24 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
-import https from "node:https";
 import { requireAnthropic } from "@/lib/env";
 
-// HTTPS agent with keep-alive on — reuses TCP connections across calls to
-// api.anthropic.com instead of re-handshaking every turn. Saves ~30-50ms
-// per LLM call in steady state.
-const keepAliveAgent = new https.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30_000,
-  maxSockets: 50,
-});
+// Node 18+ global fetch (undici) keeps TCP connections alive by default,
+// so no httpAgent setup is required for connection reuse to api.anthropic.com.
 
 let client: Anthropic | null = null;
 
 export function anthropic(): Anthropic {
   if (!client) {
-    client = new Anthropic({
-      apiKey: requireAnthropic(),
-      httpAgent: keepAliveAgent,
-    });
+    client = new Anthropic({ apiKey: requireAnthropic() });
   }
   return client;
 }
