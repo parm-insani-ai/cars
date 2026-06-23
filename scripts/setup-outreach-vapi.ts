@@ -52,7 +52,7 @@ async function main() {
     // Let the prospect interrupt the opener — most natural-sounding callers
     // start talking the moment they realize Ava is a recording.
     firstMessageInterruptionsEnabled: true,
-    firstMessage: `Hi, this is Ava with ${company} — I'll be upfront, I'm an AI and this call is recorded for quality. I know you weren't expecting my call. The reason I'm reaching out is most small businesses around Halifax are quietly losing thousands a month to calls they don't even know they missed. Have you heard of ${company} yet?`,
+    firstMessage: `Hey, is this the owner or manager? I'll be quick — I'm calling because we help Halifax businesses stop missing customer calls after hours, during busy periods, or when staff are tied up. It's an AI receptionist that answers calls, takes messages, books appointments, and sends you the details. Are missed calls or voicemails something you deal with right now?`,
     model: {
       provider: "custom-llm",
       url: `${base}/api/outreach/llm`,
