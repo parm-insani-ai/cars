@@ -7,6 +7,8 @@ import {
 import { buildOutreachSystemPrompt } from "./system-prompt";
 import { getOutreachToolSchemas } from "./tools";
 import { prisma } from "@/lib/prisma";
+import { env } from "@/lib/env";
+import { smsAdapter } from "@/integrations/sms";
 import type Anthropic from "@anthropic-ai/sdk";
 
 // One turn of an outbound AI sales call. Called by Vapi via our outreach
@@ -130,14 +132,63 @@ export async function summarizeOutreachCall(outreachCallId: string) {
       "demo_booked", "callback_requested", "not_interested", "no_answer",
       "voicemail", "wrong_number", "bad_fit", "gatekeeper_blocked", "do_not_call",
     ];
+    const finalDisposition = call.disposition ?? (valid.includes(j.disposition) ? j.disposition : null);
+    const finalSummary = String(j.summary ?? "").slice(0, 1000);
     await prisma.outreachCall.update({
       where: { id: outreachCallId },
       data: {
-        summary: String(j.summary ?? "").slice(0, 1000),
-        disposition: call.disposition ?? (valid.includes(j.disposition) ? j.disposition : null),
+        summary: finalSummary,
+        disposition: finalDisposition,
       },
     });
+    // Fire-and-forget SMS to the operator so they know how the call went the
+    // moment it ends. Doesn't block; failures shouldn't fail the summarize.
+    void notifyOperatorAfterCall({
+      outreachCallId,
+      businessName: call.prospect.businessName,
+      disposition: finalDisposition,
+      summary: finalSummary,
+    }).catch(() => undefined);
   } catch {
     /* ignore */
   }
+}
+
+// SMS notification to the operator after every outbound call ends. Includes
+// business called, disposition, one-paragraph summary, and a link back to the
+// full transcript in the dashboard. Silent if OPERATOR_NOTIFICATION_PHONE is
+// not configured.
+const DISPOSITION_TEXT: Record<string, string> = {
+  demo_booked:         "Demo booked ✓",
+  callback_requested:  "Callback requested",
+  not_interested:      "Not interested",
+  no_answer:           "No answer",
+  voicemail:           "Left voicemail",
+  wrong_number:        "Wrong number",
+  bad_fit:             "Bad fit",
+  gatekeeper_blocked:  "Blocked by gatekeeper",
+  do_not_call:         "Added to DNC",
+};
+
+async function notifyOperatorAfterCall(args: {
+  outreachCallId: string;
+  businessName: string;
+  disposition: string | null;
+  summary: string;
+}) {
+  if (!env.OPERATOR_NOTIFICATION_PHONE) return;
+
+  const base = (process.env.PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
+  const url = base ? `${base}/outreach/calls/${args.outreachCallId}` : "";
+  const dispositionLine = args.disposition
+    ? DISPOSITION_TEXT[args.disposition] ?? args.disposition
+    : "Ended (no outcome recorded)";
+
+  const body =
+    `${env.OUTREACH_COMPANY_NAME} call: ${args.businessName}\n` +
+    `Result: ${dispositionLine}\n\n` +
+    `${args.summary || "(no summary generated)"}\n\n` +
+    (url ? `Transcript: ${url}` : "");
+
+  await smsAdapter().send({ to: env.OPERATOR_NOTIFICATION_PHONE, body });
 }
