@@ -143,12 +143,16 @@ export async function summarizeOutreachCall(outreachCallId: string) {
     });
     // Fire-and-forget SMS to the operator so they know how the call went the
     // moment it ends. Doesn't block; failures shouldn't fail the summarize.
+    // Errors are logged so they show up in Vercel Runtime Logs instead of
+    // vanishing silently.
     void notifyOperatorAfterCall({
       outreachCallId,
       businessName: call.prospect.businessName,
       disposition: finalDisposition,
       summary: finalSummary,
-    }).catch(() => undefined);
+    }).catch(err => {
+      console.error("notifyOperatorAfterCall failed:", err);
+    });
   } catch {
     /* ignore */
   }
@@ -176,7 +180,10 @@ async function notifyOperatorAfterCall(args: {
   disposition: string | null;
   summary: string;
 }) {
-  if (!env.OPERATOR_NOTIFICATION_PHONE) return;
+  if (!env.OPERATOR_NOTIFICATION_PHONE) {
+    console.log("notifyOperatorAfterCall: skipped — OPERATOR_NOTIFICATION_PHONE not set");
+    return;
+  }
 
   const base = (process.env.PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
   const url = base ? `${base}/outreach/calls/${args.outreachCallId}` : "";
@@ -190,5 +197,8 @@ async function notifyOperatorAfterCall(args: {
     `${args.summary || "(no summary generated)"}\n\n` +
     (url ? `Transcript: ${url}` : "");
 
-  await smsAdapter().send({ to: env.OPERATOR_NOTIFICATION_PHONE, body });
+  const adapter = smsAdapter();
+  console.log(`notifyOperatorAfterCall: sending via ${adapter.provider} to ${env.OPERATOR_NOTIFICATION_PHONE}`);
+  const result = await adapter.send({ to: env.OPERATOR_NOTIFICATION_PHONE, body });
+  console.log(`notifyOperatorAfterCall: sent, externalId=${result.externalId}`);
 }
