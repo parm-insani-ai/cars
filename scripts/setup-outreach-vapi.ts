@@ -74,6 +74,18 @@ async function main() {
     // Nova-2 but better accuracy on accents and noisy audio.
     transcriber: { provider: "deepgram", model: "nova-3", language: "en" },
     server: { url: `${base}/api/outreach/webhook` },
+    // Explicitly declare which events Vapi should POST to our webhook.
+    // Without this, Vapi uses its own default set, which sometimes omits the
+    // end-of-call-report we rely on for summaries + SMS notifications.
+    serverMessages: [
+      "end-of-call-report",
+      "status-update",
+      "tool-calls",
+      "function-call",
+      "hang",
+      "speech-update",
+      "transfer-destination-request",
+    ],
     // Snappier turn-taking. End-of-speech is the biggest single source of
     // perceived lag; lower wait + smart endpointing nearly halves it.
     silenceTimeoutSeconds: 30,
