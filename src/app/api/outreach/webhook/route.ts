@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
   }
   const msg = body.message ?? body;
 
+  console.log(`[outreach-webhook] received type=${msg.type}`);
   try {
     switch (msg.type as string) {
       case "tool-calls":         return await handleToolCalls(msg);
@@ -151,8 +152,13 @@ async function handleEndOfCall(msg: any) {
     }
   }
 
-  // Summary + disposition classification (best-effort).
-  summarizeOutreachCall(call.id).catch(() => undefined);
+  // Summary + disposition classification (best-effort). Errors are logged
+  // so a silent Anthropic / DB failure is visible in Runtime Logs instead
+  // of swallowing itself into oblivion.
+  console.log(`[outreach-webhook] end-of-call reached, spawning summarizeOutreachCall for ${call.id}`);
+  summarizeOutreachCall(call.id).catch(err => {
+    console.error(`[outreach-webhook] summarizeOutreachCall failed for ${call.id}:`, err);
+  });
 
   return NextResponse.json({ ok: true });
 }

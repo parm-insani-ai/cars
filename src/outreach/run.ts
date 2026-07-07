@@ -99,17 +99,33 @@ export async function runOutreachTurn(args: {
 // classification. Run from the end-of-call webhook. Only fills disposition if a
 // tool didn't already set one.
 export async function summarizeOutreachCall(outreachCallId: string) {
+  console.log(`[summarize] starting for ${outreachCallId}`);
   const call = await prisma.outreachCall.findUnique({
     where: { id: outreachCallId },
     include: { turns: { orderBy: { startedAt: "asc" } }, prospect: true },
   });
-  if (!call) return;
+  if (!call) {
+    console.log(`[summarize] call ${outreachCallId} not found in DB`);
+    return;
+  }
   const transcript = call.turns
     .filter(t => t.role !== "tool")
     .map(t => `${t.role.toUpperCase()}: ${t.text}`)
     .join("\n");
-  if (!transcript) return;
+  if (!transcript) {
+    console.log(`[summarize] call ${outreachCallId} has no turns to summarize; sending SMS with fallback text`);
+    // Even without a transcript we still want the operator notified that a
+    // call ended. Fire notification with a placeholder summary.
+    void notifyOperatorAfterCall({
+      outreachCallId,
+      businessName: call.prospect.businessName,
+      disposition: call.disposition,
+      summary: "(no conversation captured — call may have hit voicemail or ended before a turn was recorded)",
+    }).catch(err => console.error("notifyOperatorAfterCall failed:", err));
+    return;
+  }
 
+  console.log(`[summarize] calling Anthropic for ${outreachCallId}, transcript length=${transcript.length}`);
   const client = anthropic();
   const resp = await client.messages.create({
     model: MODELS.summarize,
@@ -124,8 +140,18 @@ export async function summarizeOutreachCall(outreachCallId: string) {
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map(b => b.text)
     .join("");
+  console.log(`[summarize] anthropic returned, text length=${text.length}`);
   const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return;
+  if (!match) {
+    console.log(`[summarize] no JSON block in anthropic response; sending SMS with best-effort text`);
+    void notifyOperatorAfterCall({
+      outreachCallId,
+      businessName: call.prospect.businessName,
+      disposition: call.disposition,
+      summary: text.slice(0, 500) || "(summary generation failed)",
+    }).catch(err => console.error("notifyOperatorAfterCall failed:", err));
+    return;
+  }
   try {
     const j = JSON.parse(match[0]);
     const valid = [
@@ -153,8 +179,8 @@ export async function summarizeOutreachCall(outreachCallId: string) {
     }).catch(err => {
       console.error("notifyOperatorAfterCall failed:", err);
     });
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.error(`[summarize] JSON parse or DB update failed for ${outreachCallId}:`, err);
   }
 }
 
