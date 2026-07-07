@@ -152,13 +152,18 @@ async function handleEndOfCall(msg: any) {
     }
   }
 
-  // Summary + disposition classification (best-effort). Errors are logged
-  // so a silent Anthropic / DB failure is visible in Runtime Logs instead
-  // of swallowing itself into oblivion.
-  console.log(`[outreach-webhook] end-of-call reached, spawning summarizeOutreachCall for ${call.id}`);
-  summarizeOutreachCall(call.id).catch(err => {
+  // Summary + disposition classification. We AWAIT this instead of firing
+  // it in the background — Vercel Serverless Functions terminate the
+  // process the moment the response returns, which was killing our
+  // summarize + SMS mid-Anthropic-call. Adding a few seconds to this
+  // webhook response is fine; Vapi doesn't care.
+  console.log(`[outreach-webhook] end-of-call reached, awaiting summarizeOutreachCall for ${call.id}`);
+  try {
+    await summarizeOutreachCall(call.id);
+    console.log(`[outreach-webhook] summarizeOutreachCall completed for ${call.id}`);
+  } catch (err) {
     console.error(`[outreach-webhook] summarizeOutreachCall failed for ${call.id}:`, err);
-  });
+  }
 
   return NextResponse.json({ ok: true });
 }

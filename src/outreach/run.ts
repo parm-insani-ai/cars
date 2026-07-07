@@ -115,13 +115,17 @@ export async function summarizeOutreachCall(outreachCallId: string) {
   if (!transcript) {
     console.log(`[summarize] call ${outreachCallId} has no turns to summarize; sending SMS with fallback text`);
     // Even without a transcript we still want the operator notified that a
-    // call ended. Fire notification with a placeholder summary.
-    void notifyOperatorAfterCall({
-      outreachCallId,
-      businessName: call.prospect.businessName,
-      disposition: call.disposition,
-      summary: "(no conversation captured — call may have hit voicemail or ended before a turn was recorded)",
-    }).catch(err => console.error("notifyOperatorAfterCall failed:", err));
+    // call ended. Await so Vercel doesn't kill it in the background.
+    try {
+      await notifyOperatorAfterCall({
+        outreachCallId,
+        businessName: call.prospect.businessName,
+        disposition: call.disposition,
+        summary: "(no conversation captured — call may have hit voicemail or ended before a turn was recorded)",
+      });
+    } catch (err) {
+      console.error("notifyOperatorAfterCall failed:", err);
+    }
     return;
   }
 
@@ -144,12 +148,16 @@ export async function summarizeOutreachCall(outreachCallId: string) {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) {
     console.log(`[summarize] no JSON block in anthropic response; sending SMS with best-effort text`);
-    void notifyOperatorAfterCall({
-      outreachCallId,
-      businessName: call.prospect.businessName,
-      disposition: call.disposition,
-      summary: text.slice(0, 500) || "(summary generation failed)",
-    }).catch(err => console.error("notifyOperatorAfterCall failed:", err));
+    try {
+      await notifyOperatorAfterCall({
+        outreachCallId,
+        businessName: call.prospect.businessName,
+        disposition: call.disposition,
+        summary: text.slice(0, 500) || "(summary generation failed)",
+      });
+    } catch (err) {
+      console.error("notifyOperatorAfterCall failed:", err);
+    }
     return;
   }
   try {
@@ -167,18 +175,19 @@ export async function summarizeOutreachCall(outreachCallId: string) {
         disposition: finalDisposition,
       },
     });
-    // Fire-and-forget SMS to the operator so they know how the call went the
-    // moment it ends. Doesn't block; failures shouldn't fail the summarize.
-    // Errors are logged so they show up in Vercel Runtime Logs instead of
-    // vanishing silently.
-    void notifyOperatorAfterCall({
-      outreachCallId,
-      businessName: call.prospect.businessName,
-      disposition: finalDisposition,
-      summary: finalSummary,
-    }).catch(err => {
+    // AWAIT the SMS so Vercel keeps the function alive until Twilio responds.
+    // On Vercel Serverless, background promises are killed once the response
+    // returns; fire-and-forget silently dropped every SMS.
+    try {
+      await notifyOperatorAfterCall({
+        outreachCallId,
+        businessName: call.prospect.businessName,
+        disposition: finalDisposition,
+        summary: finalSummary,
+      });
+    } catch (err) {
       console.error("notifyOperatorAfterCall failed:", err);
-    });
+    }
   } catch (err) {
     console.error(`[summarize] JSON parse or DB update failed for ${outreachCallId}:`, err);
   }
