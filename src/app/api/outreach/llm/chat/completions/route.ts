@@ -110,6 +110,8 @@ export async function POST(req: NextRequest) {
       let currentTool: { index: number; id: string; name: string; argsRaw: string } | null = null;
       let stopReason: string | null = null;
 
+      const streamStart = Date.now();
+      let firstTokenAt: number | null = null;
       try {
         const aStream = client.messages.stream({
           model: MODELS.brain,
@@ -146,6 +148,10 @@ export async function POST(req: NextRequest) {
           } else if (event.type === "content_block_delta") {
             const d = event.delta;
             if (d?.type === "text_delta") {
+              if (firstTokenAt === null) {
+                firstTokenAt = Date.now();
+                console.log(`[outreach-llm] TTFT=${firstTokenAt - streamStart}ms`);
+              }
               collectedText += d.text;
               controller.enqueue(encoder.encode(chunk({ content: d.text })));
             } else if (d?.type === "input_json_delta") {
@@ -178,6 +184,17 @@ export async function POST(req: NextRequest) {
             }
           } else if (event.type === "message_delta") {
             if (event.delta?.stop_reason) stopReason = event.delta.stop_reason;
+          } else if (event.type === "message_stop") {
+            // Grab the final message (with usage stats) so we can see cache hits.
+            try {
+              const finalMsg = await aStream.finalMessage();
+              const u = finalMsg.usage;
+              console.log(
+                `[outreach-llm] usage input=${u.input_tokens} output=${u.output_tokens} ` +
+                `cache_read=${u.cache_read_input_tokens ?? 0} cache_creation=${u.cache_creation_input_tokens ?? 0} ` +
+                `total_stream_ms=${Date.now() - streamStart}`,
+              );
+            } catch { /* not critical */ }
           }
         }
 
