@@ -20,6 +20,7 @@ const PUBLIC_PATHS = [
   "/api/auth/google/callback",
   "/api/mock-checkout/confirm",
   "/api/inngest",
+  "/api/cron/outreach-dispatch",
   "/mock-checkout",
   "/deposit",
 ];
