@@ -85,9 +85,32 @@ export async function POST(req: NextRequest) {
     const c = await prisma.outreachCampaign.findUnique({ where: { id: campaignId } });
     if (!c) return NextResponse.json({ error: "not_found" }, { status: 404 });
     const status = op === "start" ? "running" : op === "pause" ? "paused" : "canceled";
+
+    // Reopening a canceled or completed campaign: reset any targets that were
+    // parked when the campaign stopped (skipped due to config gaps, or that
+    // never got a real answer) back to "pending" so the dispatcher will pick
+    // them up again. We deliberately leave "failed", "completed", or already-
+    // "converted" targets alone — those had a real outcome we shouldn't undo.
+    if (op === "start" && (c.status === "canceled" || c.status === "completed")) {
+      await prisma.outreachTarget.updateMany({
+        where: {
+          campaignId: c.id,
+          status: { in: ["skipped", "calling"] },
+          attempts: { lt: c.maxAttempts },
+        },
+        data: { status: "pending", nextAttemptAt: null, outcomeNote: null },
+      });
+    }
+
     await prisma.outreachCampaign.update({
       where: { id: c.id },
-      data: { status, startsAt: op === "start" && !c.startsAt ? new Date() : c.startsAt },
+      data: {
+        status,
+        startsAt: op === "start" && !c.startsAt ? new Date() : c.startsAt,
+        // Reopening clears the completed timestamp so /outreach/campaigns
+        // doesn't still show it as a finished run.
+        completedAt: op === "start" ? null : c.completedAt,
+      },
     });
     return NextResponse.json({ ok: true });
   }

@@ -19,7 +19,7 @@ export function OutreachCampaignControls({ campaignId, status }: { campaignId: s
     router.refresh();
   }
 
-  if (status === "completed" || status === "canceled") return null;
+  const isTerminal = status === "completed" || status === "canceled";
 
   return (
     <div className="flex gap-2">
@@ -31,7 +31,14 @@ export function OutreachCampaignControls({ campaignId, status }: { campaignId: s
       {status === "running" && (
         <button className="btn-secondary" onClick={() => run("pause")} disabled={busy}>Pause</button>
       )}
-      <button className="btn-danger" onClick={() => run("cancel")} disabled={busy}>Cancel</button>
+      {isTerminal && (
+        <button className="btn-primary" onClick={() => run("start")} disabled={busy}>
+          {status === "canceled" ? "Reopen campaign" : "Restart campaign"}
+        </button>
+      )}
+      {!isTerminal && (
+        <button className="btn-danger" onClick={() => run("cancel")} disabled={busy}>Cancel</button>
+      )}
     </div>
   );
 }

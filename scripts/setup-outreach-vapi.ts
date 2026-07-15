@@ -30,6 +30,7 @@ async function main() {
   const apiKey = process.env.VAPI_API_KEY;
   const base = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
   const company = process.env.OUTREACH_COMPANY_NAME || "Insani AI";
+  const callbackNumber = (process.env.OPERATOR_NOTIFICATION_PHONE || "").trim();
   const existingId = process.env.VAPI_OUTREACH_ASSISTANT_ID || "";
 
   if (!apiKey) {
@@ -107,6 +108,20 @@ async function main() {
         onNumberSeconds: 0.4,
       },
     },
+    // Voicemail: detect the "beep" reliably, then leave a short, personal
+    // message with a callback number. The number comes from the same env
+    // var (`OPERATOR_NOTIFICATION_PHONE`) that we already use for the
+    // operator SMS notification — one source of truth for "the human to
+    // reach when Jessica can't." Fallback to a website-only CTA if the
+    // number isn't set, so the message stays coherent either way.
+    voicemailDetection: {
+      provider: "vapi",
+      backoffPlan: { startAtSeconds: 5, frequencySeconds: 3, maxRetries: 6 },
+    },
+    voicemailMessage: callbackNumber
+      ? `Hi, this is Jessica from ${company}. I was calling about missed customer calls at your business — we help Halifax businesses answer every call, book appointments, and never lose a customer. If you'd like to hear more, please call or text us back at ${formatForSpeech(callbackNumber)}, or visit insani dot ai. Thanks — have a great day.`
+      : `Hi, this is Jessica from ${company}. I was calling about missed customer calls at your business — we help Halifax businesses answer every call and book more appointments. If you'd like to hear more, visit insani dot ai. Thanks — have a great day.`,
+    endCallMessage: "Thanks — have a great day.",
     // Backchanneling — Ava interjects brief "mhm" / "okay" while the
     // caller speaks. Makes the call feel ~300ms snappier even though
     // raw latency is unchanged.
@@ -151,3 +166,16 @@ main().catch(e => {
   console.error(e);
   process.exit(1);
 });
+
+// Turn an E.164 number like "+19025002503" into a spoken-friendly form the
+// TTS reliably reads correctly. Without this, ElevenLabs tends to blur the
+// digits together ("nineteen billion..."). Strategy: strip everything but
+// digits, drop a leading "1" (NANP country code), then split into
+// area-code / prefix / line-number and spell it out.
+function formatForSpeech(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  const local = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (local.length !== 10) return raw; // unrecognized shape — let TTS try
+  const say = (s: string) => s.split("").join(" ");
+  return `${say(local.slice(0, 3))}, ${say(local.slice(3, 6))}, ${say(local.slice(6))}`;
+}
