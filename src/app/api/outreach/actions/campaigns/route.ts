@@ -80,6 +80,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ campaignId: campaign.id });
   }
 
+  if (op === "settings") {
+    // Live-edit pacing/quiet-hour settings on an existing campaign. Handy
+    // when a running campaign needs a wider dial window without cancelling
+    // and rebuilding it from scratch.
+    const body = (await req.json()) as {
+      campaignId: string;
+      quietStartHour?: number;
+      quietEndHour?: number;
+      ratePerMinute?: number;
+      maxAttempts?: number;
+    };
+    if (!body.campaignId) return NextResponse.json({ error: "bad_request" }, { status: 400 });
+    const patch: Prisma.OutreachCampaignUpdateInput = {};
+    if (typeof body.quietStartHour === "number" && body.quietStartHour >= 0 && body.quietStartHour <= 23) {
+      patch.quietStartHour = body.quietStartHour;
+    }
+    if (typeof body.quietEndHour === "number" && body.quietEndHour >= 0 && body.quietEndHour <= 23) {
+      patch.quietEndHour = body.quietEndHour;
+    }
+    if (typeof body.ratePerMinute === "number" && body.ratePerMinute >= 1 && body.ratePerMinute <= 20) {
+      patch.ratePerMinute = body.ratePerMinute;
+    }
+    if (typeof body.maxAttempts === "number" && body.maxAttempts >= 1 && body.maxAttempts <= 10) {
+      patch.maxAttempts = body.maxAttempts;
+    }
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ error: "no_valid_fields" }, { status: 400 });
+    }
+    await prisma.outreachCampaign.update({ where: { id: body.campaignId }, data: patch });
+    return NextResponse.json({ ok: true });
+  }
+
   if (op === "start" || op === "pause" || op === "cancel") {
     const { campaignId } = (await req.json()) as { campaignId: string };
     const c = await prisma.outreachCampaign.findUnique({ where: { id: campaignId } });

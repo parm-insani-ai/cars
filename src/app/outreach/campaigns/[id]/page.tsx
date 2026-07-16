@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatDistanceToNowStrict } from "date-fns";
 import { OutreachCampaignControls } from "./OutreachCampaignControls";
+import { CampaignSettings } from "./CampaignSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,14 @@ export default async function OutreachCampaignDetail({ params }: { params: { id:
         <p className="text-sm whitespace-pre-wrap">{campaign.pitch}</p>
         {campaign.offer && <p className="text-sm text-ink-muted">Offer: {campaign.offer}</p>}
       </div>
+
+      <CampaignSettings
+        campaignId={campaign.id}
+        quietStartHour={campaign.quietStartHour}
+        quietEndHour={campaign.quietEndHour}
+        ratePerMinute={campaign.ratePerMinute}
+        maxAttempts={campaign.maxAttempts}
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <Kpi label="Targets" value={stats.total} />

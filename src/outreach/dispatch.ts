@@ -178,7 +178,12 @@ async function skip(targetId: string, status: "skipped" | "opted_out", note: str
 }
 
 // Inclusive of start hour, exclusive of end hour, evaluated in `tz`.
+// Special case: startHour === endHour means "no quiet hours" (dial 24/7).
+// Without that, the wrap-midnight branch below would flag every hour except
+// the one at exactly startHour as quiet — the opposite of what an operator
+// setting "0 to 0" intuitively wants.
 function isQuietHour(tz: string, startHour: number, endHour: number): boolean {
+  if (startHour === endHour) return false;
   const fmt = new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: tz });
   const h = Number(fmt.format(new Date()));
   if (startHour < endHour) return h >= startHour && h < endHour;
