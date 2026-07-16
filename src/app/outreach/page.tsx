@@ -5,6 +5,7 @@ import { chipClass, prospectStatusChip, prospectStatusLabel, dispositionLabel } 
 import { googlePlacesAvailable } from "@/outreach/sourcing/google-places";
 import { outreachVapiReady } from "@/lib/env";
 import { TestCallCard } from "./TestCallCard";
+import { LiveOutreachCalls } from "./LiveOutreachCalls";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,8 @@ export default async function OutreachOverview() {
           </ul>
         </div>
       )}
+
+      <LiveOutreachCalls />
 
       {outreachVapiReady() && <TestCallCard />}
 
