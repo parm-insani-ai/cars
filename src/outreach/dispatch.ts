@@ -6,11 +6,25 @@ import { env, outreachVapiReady } from "@/lib/env";
 // the plain HTTP endpoint at /api/cron/outreach-dispatch so a customer without
 // Inngest Cloud connected can still run campaigns via cron-job.org.
 
-export async function runOutreachDispatch(): Promise<{ calls: number; skipped: number; campaigns: number }> {
+export async function runOutreachDispatch(): Promise<{
+  calls: number;
+  skipped: number;
+  campaigns: number;
+  quietHoursHeld: number;
+  pendingHeld: number;
+}> {
   const campaigns = await prisma.outreachCampaign.findMany({ where: { status: "running" } });
 
   let totalCalls = 0;
   let totalSkipped = 0;
+  // Count prospects that were eligible-by-status but held back by quiet hours,
+  // and total pending waiting for their next-attempt window. Surfaces the
+  // difference between "nothing to call" and "we have targets but can't ring
+  // them yet" in the dispatcher's response — the previous version returned
+  // {calls:0, skipped:0} for both cases and it was impossible to tell them
+  // apart from the cron result.
+  let quietHoursHeld = 0;
+  let pendingHeld = 0;
   const ready = outreachVapiReady();
 
   for (const c of campaigns) {
@@ -64,6 +78,7 @@ export async function runOutreachDispatch(): Promise<{ calls: number; skipped: n
         continue;
       }
       if (isQuietHour(p.timezone, c.quietStartHour, c.quietEndHour)) {
+        quietHoursHeld++;
         continue;
       }
       if (t.attempts >= c.maxAttempts) {
@@ -143,7 +158,16 @@ export async function runOutreachDispatch(): Promise<{ calls: number; skipped: n
     }
   }
 
-  return { calls: totalCalls, skipped: totalSkipped, campaigns: campaigns.length };
+  // Count targets that are still pending across all campaigns — useful signal
+  // when calls=0 and skipped=0 (typically means everyone's in quiet hours or
+  // waiting on nextAttemptAt).
+  for (const c of campaigns) {
+    pendingHeld += await prisma.outreachTarget.count({
+      where: { campaignId: c.id, status: "pending" },
+    });
+  }
+
+  return { calls: totalCalls, skipped: totalSkipped, campaigns: campaigns.length, quietHoursHeld, pendingHeld };
 }
 
 async function skip(targetId: string, status: "skipped" | "opted_out", note: string) {
