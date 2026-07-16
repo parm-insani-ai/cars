@@ -37,6 +37,13 @@ const ITEMS: Item[] = [
 export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boolean; showOutreach?: boolean }) {
   const pathname = usePathname() ?? "";
 
+  // Pick a single "most specific" active item per render. Prefix matching
+  // alone (the old approach) lit up both "GTM overview" (/outreach) and
+  // "Prospects" (/outreach/prospects) whenever a subpage was open, because
+  // /outreach is a prefix of every child. Longest-match resolves that: only
+  // the deepest matching href wins.
+  const activeHref = pickActiveHref(pathname, ITEMS);
+
   // Mobile drawer state — Topbar's hamburger dispatches a custom event, we
   // listen for it. Closes automatically on navigate or overlay tap.
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -64,7 +71,7 @@ export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boole
           <BrandHeader title="insani GTM" onClose={close} />
           <Section title="Halifax outreach">
             {ITEMS.filter(i => i.section === "growth").map(i => (
-              <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} onClick={close} />
+              <NavLink key={i.href} {...i} active={activeHref === i.href} onClick={close} />
             ))}
           </Section>
           <div className="mt-auto pt-4 px-2 text-[11px] text-ink-muted">
@@ -82,12 +89,12 @@ export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boole
         <BrandHeader title="insani" onClose={close} />
         <Section title="Today">
           {ITEMS.filter(i => i.section === "work").map(i => (
-            <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} onClick={close} />
+            <NavLink key={i.href} {...i} active={activeHref === i.href} onClick={close} />
           ))}
         </Section>
         <Section title="Your business">
           {ITEMS.filter(i => i.section === "data").map(i => (
-            <NavLink key={i.href} {...i} active={isActive(pathname, i.href)} onClick={close} />
+            <NavLink key={i.href} {...i} active={activeHref === i.href} onClick={close} />
           ))}
         </Section>
         <Section title="Set up & insights">
@@ -95,7 +102,7 @@ export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boole
             <NavLink
               key={i.href}
               {...i}
-              active={isActive(pathname, i.href)}
+              active={activeHref === i.href}
               onClick={close}
               badge={i.href === "/settings" && setupComplete === false ? "Setup" : undefined}
             />
@@ -142,9 +149,19 @@ function BrandHeader({ title, onClose }: { title: string; onClose: () => void })
   );
 }
 
-function isActive(p: string, href: string) {
-  if (href === "/") return p === "/";
-  return p === href || p.startsWith(href + "/");
+// Return the single most-specific nav item that matches the current path,
+// or null if nothing matches. Longest-href wins, so /outreach/prospects
+// always beats /outreach (which is a prefix of every outreach subpage).
+function pickActiveHref(pathname: string, items: Item[]): string | null {
+  let best: string | null = null;
+  for (const item of items) {
+    const matches =
+      item.href === "/" ? pathname === "/" :
+      pathname === item.href || pathname.startsWith(item.href + "/");
+    if (!matches) continue;
+    if (best === null || item.href.length > best.length) best = item.href;
+  }
+  return best;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
