@@ -10,7 +10,6 @@ import {
   CATEGORY_GROUPS,
   type CategoryGroup,
 } from "@/outreach/categories";
-import { SourceForm } from "./SourceForm";
 
 export const dynamic = "force-dynamic";
 
@@ -168,8 +167,6 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Se
         <h1 className="page-title">Prospects</h1>
         <p className="page-sub">Halifax small businesses we've sourced as potential AI-receptionist customers.</p>
       </div>
-
-      <SourceForm />
 
       {/* Search bar — plain GET form so it works even without JS. Preserves
           every other active filter as hidden inputs so submitting the search
