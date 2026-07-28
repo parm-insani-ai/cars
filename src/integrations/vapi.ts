@@ -89,3 +89,14 @@ export async function placeOutboundCall(args: {
   const j: any = await res.json();
   return { id: j.id };
 }
+
+// Play DTMF tones into a live Vapi call. Used by Ava's press_digits tool
+// to navigate IVR menus (e.g. "press 0 for operator"). The Vapi call/{id}/
+// control endpoint accepts a "dtmf" type with the digits string; Vapi
+// injects the tones into the audio stream in real time.
+export async function sendDtmf(vapiCallId: string, digits: string): Promise<void> {
+  await vapiFetch(`/call/${vapiCallId}/control`, {
+    method: "POST",
+    body: JSON.stringify({ type: "dtmf", digits }),
+  });
+}

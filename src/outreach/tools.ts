@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { parseISO } from "date-fns";
 import { smsAdapter } from "@/integrations/sms";
 import { env } from "@/lib/env";
+import { sendDtmf } from "@/integrations/vapi";
 
 // Tools the AI sales rep can call DURING an outbound call. Each one maps to a
 // real write against the outreach data island — the model can't make outcomes
@@ -92,6 +93,26 @@ export function getOutreachToolSchemas(): Anthropic.Tool[] {
       },
     },
     {
+      name: "press_digits",
+      description:
+        "Send DTMF (touch-tone) digits into the call. Use this to navigate an IVR / auto-attendant menu — for example, pressing '0' or '9' to reach a human operator, or pressing the number for 'sales' or 'the front desk'. Wait for the menu to finish reading options before pressing. If you can't hear a human option, prefer '0' — it's the most universal 'reach operator' key.",
+      input_schema: {
+        type: "object",
+        properties: {
+          digits: {
+            type: "string",
+            description: "The digits to press, as a string (e.g. '0', '9', '102'). Only 0-9, #, and *.",
+            pattern: "^[0-9#*]+$",
+          },
+          reason: {
+            type: "string",
+            description: "Brief explanation of why you're pressing these digits — for the call log.",
+          },
+        },
+        required: ["digits"],
+      },
+    },
+    {
       name: "end_call",
       description: "End the call. Only call this AFTER you've said goodbye out loud in the same turn.",
       input_schema: {
@@ -122,6 +143,7 @@ export async function executeOutreachTool(
       case "request_callback":    return await requestCallback(ctx, input);
       case "mark_not_interested": return await markNotInterested(ctx, input);
       case "add_to_dnc":          return await addToDnc(ctx, input);
+      case "press_digits":        return await pressDigits(ctx, input);
       case "end_call":            return await endCall(ctx, input);
       default:                    return { ok: false, error: `Unknown tool: ${name}` };
     }
@@ -283,6 +305,36 @@ async function addToDnc(ctx: OutreachToolContext, input: any): Promise<ToolResul
     });
   }
   return { ok: true, content: { suppressed: true } };
+}
+
+async function pressDigits(ctx: OutreachToolContext, input: any): Promise<ToolResult> {
+  const digits = String(input.digits ?? "").replace(/[^0-9#*]/g, "");
+  if (!digits) return { ok: false, error: "digits must be a string of 0-9, #, or *" };
+
+  const call = await prisma.outreachCall.findUnique({
+    where: { id: ctx.outreachCallId },
+    select: { vapiCallId: true },
+  });
+  if (!call?.vapiCallId) return { ok: false, error: "no vapi_call_id linked to this outreach call" };
+
+  try {
+    await sendDtmf(call.vapiCallId, digits);
+  } catch (err) {
+    return { ok: false, error: `Vapi rejected the DTMF: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  // Log so the transcript captures WHY we pressed. Fire-and-forget.
+  prisma.outreachToolCall.create({
+    data: {
+      callId: ctx.outreachCallId,
+      toolName: "press_digits",
+      input: { digits, reason: input.reason ?? null } as any,
+      output: { ok: true } as any,
+      latencyMs: 0,
+    },
+  }).catch(() => undefined);
+
+  return { ok: true, content: { pressed: digits } };
 }
 
 async function endCall(ctx: OutreachToolContext, input: any): Promise<ToolResult> {
