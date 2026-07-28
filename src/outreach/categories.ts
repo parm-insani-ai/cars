@@ -50,7 +50,7 @@ export const CATEGORIES: ProspectCategory[] = [
   // --- Wellness & personal care ---------------------------------------
   { id: "day_spa",            label: "Day spa",            group: "wellness",      query: "day spa",                mockNoun: "Day Spa" },
   { id: "hair_salon",         label: "Hair salon",         group: "wellness",      query: "hair salon",             mockNoun: "Hair Studio" },
-  { id: "barber",             label: "Barber shop",        group: "wellness",      query: "barber shop",            mockNoun: "Barbers" },
+  // Removed "barber" — operator opted out (low-fit segment for us).
   { id: "nail_salon",         label: "Nail salon",         group: "wellness",      query: "nail salon",             mockNoun: "Nail Bar" },
   { id: "massage",            label: "Massage therapy",    group: "wellness",      query: "massage therapy",        mockNoun: "Massage Therapy" },
   { id: "esthetics",          label: "Esthetics studio",   group: "wellness",      query: "esthetician",            mockNoun: "Esthetics" },
