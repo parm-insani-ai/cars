@@ -10,6 +10,7 @@ import {
   CATEGORY_GROUPS,
   type CategoryGroup,
 } from "@/outreach/categories";
+import { PurgeCategoryButton } from "./PurgeCategoryButton";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +107,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Se
   // Fetch the filtered list. Cities dropdown pulls from the FULL set (not
   // narrowed by the current filter) so switching cities always reveals every
   // option, not just the ones that already match everything else.
-  const [prospects, cities, totalMatching] = await Promise.all([
+  const [prospects, cities, totalMatching, categoryTotal] = await Promise.all([
     prisma.prospect.findMany({ where, orderBy, take: 300 }),
     prisma.prospect.findMany({
       where: { city: { not: null } },
@@ -115,6 +116,10 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Se
       orderBy: { city: "asc" },
     }),
     prisma.prospect.count({ where }),
+    // For the purge button: count of prospects in the category (regardless
+    // of other filters, because "delete all barber shops" ignores city/rating/
+    // etc). Only need this when a specific sub-category is chosen.
+    category !== "all" ? prisma.prospect.count({ where: { category } }) : Promise.resolve(0),
   ]);
 
   function href(next: Partial<SearchParams>) {
@@ -224,6 +229,20 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Se
               </Link>
             ))}
           </FilterRow>
+        )}
+
+        {/* When zoomed into a specific sub-category, offer a one-click nuke
+            of the whole category. Uses the exact category id (not the
+            current filter set) so the count matches what actually gets
+            deleted — e.g. "Delete all 14 barber shop prospects". */}
+        {category !== "all" && categoryTotal > 0 && (
+          <div className="pl-3 border-l-2 border-lane-hot/30">
+            <PurgeCategoryButton
+              categoryId={category}
+              categoryLabel={categoryLabel(category)}
+              matchingCount={categoryTotal}
+            />
+          </div>
         )}
 
         <FilterRow label="City">
