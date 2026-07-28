@@ -53,7 +53,7 @@ async function main() {
     // Let the prospect interrupt the opener — most natural-sounding callers
     // start talking the moment they realize Ava is a recording.
     firstMessageInterruptionsEnabled: true,
-    firstMessage: `Hi, this is Ava from Insani Technologies. I was calling about missed customer calls at your business — we help Halifax businesses answer every call, book appointments, follow up, and never lose a customer. Is that something you would be interested in?`,
+    firstMessage: `Hi, this is Ava from Insani Technologies. Could I speak with the owner or manager please?`,
     model: {
       provider: "custom-llm",
       url: `${base}/api/outreach/llm`,
@@ -119,8 +119,8 @@ async function main() {
       backoffPlan: { startAtSeconds: 5, frequencySeconds: 3, maxRetries: 6 },
     },
     voicemailMessage: callbackNumber
-      ? `Hi, this is Ava from ${company}. I was calling about missed customer calls at your business — we help Halifax businesses answer every call, book appointments, follow up, and never lose a customer. If you'd like to hear more, please call or text us back at ${formatForSpeech(callbackNumber)}, or visit insani dot ai. Thanks — have a great day.`
-      : `Hi, this is Ava from ${company}. I was calling about missed customer calls at your business — we help Halifax businesses answer every call, book appointments, and never lose a customer. If you'd like to hear more, visit insani dot ai. Thanks — have a great day.`,
+      ? `Hi, this is Ava from ${company}. I was trying to reach the owner or manager about a quick way to stop losing customers to missed calls — we're helping Halifax businesses answer every call, book appointments, and follow up automatically. If they'd like to hear more, please have them call or text us back at ${formatForSpeech(callbackNumber)}, or visit insani dot ai. Thanks — have a great day.`
+      : `Hi, this is Ava from ${company}. I was trying to reach the owner or manager about a quick way to stop losing customers to missed calls. If they'd like to hear more, please have them visit insani dot ai. Thanks — have a great day.`,
     endCallMessage: "Thanks — have a great day.",
     // Backchanneling — Ava interjects brief "mhm" / "okay" while the
     // caller speaks. Makes the call feel ~300ms snappier even though
