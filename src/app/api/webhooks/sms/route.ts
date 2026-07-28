@@ -23,6 +23,47 @@ export async function POST(req: NextRequest) {
     return twiml();
   }
 
+  // Check if the sender is an outreach prospect we've been dialing/texting.
+  // Handles reply-STOP for the voicemail-follow-up SMS: suppress future calls
+  // AND texts, mark prospect DNC. Runs BEFORE the business lookup because our
+  // outreach Twilio number typically doesn't match any Business phoneNumber.
+  const prospect = await prisma.prospect.findFirst({ where: { phone: fromNumber } });
+  if (prospect) {
+    const lower = body.toLowerCase();
+    if (["stop", "stopall", "unsubscribe", "cancel", "end", "quit", "remove", "opt out", "optout"].includes(lower)) {
+      await prisma.suppressionEntry.upsert({
+        where: { phone: fromNumber },
+        create: { phone: fromNumber, reason: "opted_out", note: "Replied STOP to outreach SMS" },
+        update: { reason: "opted_out", note: "Replied STOP to outreach SMS" },
+      });
+      await prisma.prospect.update({
+        where: { id: prospect.id },
+        data: { doNotCall: true, status: "do_not_call", disposition: "do_not_call" },
+      });
+      await prisma.outreachTarget.updateMany({
+        where: { prospectId: prospect.id, status: { in: ["pending", "calling"] } },
+        data: { status: "opted_out", outcomeNote: "Prospect replied STOP" },
+      });
+      console.log(`[outreach-stop] ${fromNumber} (${prospect.businessName}) opted out via SMS`);
+      return twiml();
+    }
+    // Non-STOP reply — likely a real prospect engaging. Forward to the
+    // operator's cell so they can respond personally rather than have Ava
+    // fumble a text conversation. This is the "hot lead" moment; the
+    // operator wants to see it immediately.
+    console.log(`[outreach-inbound] ${fromNumber} (${prospect.businessName}) replied: ${body.slice(0, 200)}`);
+    if (process.env.OPERATOR_NOTIFICATION_PHONE) {
+      const { smsAdapter } = await import("@/integrations/sms");
+      const operatorBody =
+        `[Insani outreach reply] ${prospect.businessName} (${fromNumber}):\n\n"${body.slice(0, 400)}"\n\n` +
+        `Reply directly to ${fromNumber} from your phone.`;
+      smsAdapter()
+        .send({ to: process.env.OPERATOR_NOTIFICATION_PHONE, body: operatorBody })
+        .catch(err => console.error("[outreach-inbound] operator forward failed:", err));
+    }
+    return twiml();
+  }
+
   // Find the business this number belongs to. Accept either phoneNumber or
   // smsFromNumber as identifying.
   const business = await prisma.business.findFirst({

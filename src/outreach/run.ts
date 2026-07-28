@@ -188,6 +188,23 @@ export async function summarizeOutreachCall(outreachCallId: string) {
     } catch (err) {
       console.error("notifyOperatorAfterCall failed:", err);
     }
+
+    // Multi-touch outreach: when Ava hits voicemail, follow up with a text
+    // to the prospect's business number. SMB owners live on their phones for
+    // texts — a follow-up SMS within a minute of a voicemail typically
+    // 3-5x's your effective connect rate over voicemail alone. Same await
+    // discipline as the operator SMS so Vercel doesn't kill it.
+    if (finalDisposition === "voicemail") {
+      try {
+        await sendVoicemailFollowUpToProspect({
+          prospect: call.prospect,
+          campaignId: call.campaignId,
+          outreachCallId,
+        });
+      } catch (err) {
+        console.error("sendVoicemailFollowUpToProspect failed:", err);
+      }
+    }
   } catch (err) {
     console.error(`[summarize] JSON parse or DB update failed for ${outreachCallId}:`, err);
   }
@@ -236,4 +253,72 @@ async function notifyOperatorAfterCall(args: {
   console.log(`notifyOperatorAfterCall: sending via ${adapter.provider} to ${env.OPERATOR_NOTIFICATION_PHONE}`);
   const result = await adapter.send({ to: env.OPERATOR_NOTIFICATION_PHONE, body });
   console.log(`notifyOperatorAfterCall: sent, externalId=${result.externalId}`);
+}
+
+// Follow-up SMS to the PROSPECT right after Ava leaves a voicemail. Guarded
+// three ways: (1) global kill-switch env var OUTREACH_SMS_FOLLOWUP_DISABLED,
+// (2) prospect on the do-not-call list, (3) no phone number on file. Logs
+// every attempt (sent OR skipped) to outreachToolCall so the call-detail
+// page shows exactly what happened.
+async function sendVoicemailFollowUpToProspect(args: {
+  prospect: { id: string; businessName: string; ownerName: string | null; phone: string | null; doNotCall: boolean };
+  campaignId: string | null;
+  outreachCallId: string;
+}) {
+  const { prospect, outreachCallId } = args;
+
+  const logSkip = (reason: string) =>
+    prisma.outreachToolCall
+      .create({
+        data: {
+          callId: outreachCallId,
+          toolName: "sms_followup_skipped",
+          input: { reason } as any,
+          output: { skipped: true } as any,
+          latencyMs: 0,
+        },
+      })
+      .catch(() => undefined);
+
+  if (process.env.OUTREACH_SMS_FOLLOWUP_DISABLED === "1" || process.env.OUTREACH_SMS_FOLLOWUP_DISABLED === "true") {
+    await logSkip("global kill switch on");
+    return;
+  }
+  if (!prospect.phone) {
+    await logSkip("prospect has no phone number");
+    return;
+  }
+  if (prospect.doNotCall) {
+    await logSkip("prospect is on do-not-call list");
+    return;
+  }
+
+  // Twilio auto-handles carrier-level STOP compliance for us — replying STOP
+  // suppresses future messages from our number to theirs at the Twilio layer.
+  // We include "Reply STOP to opt out" in the body so it's explicit to the
+  // recipient too, per SMS best practices.
+  const greeting = prospect.ownerName ? `Hi ${prospect.ownerName.split(" ")[0]},` : "Hi,";
+  const body =
+    `${greeting} this is Ava from ${env.OUTREACH_COMPANY_NAME} — I just left you a voicemail. ` +
+    `Wanted to see if I could grab a quick 15 minutes to show you how we help Halifax businesses answer every call and book more appointments. ` +
+    `Reply here if easier, or visit insani.ai. Reply STOP to opt out.`;
+
+  const adapter = smsAdapter();
+  console.log(`[voicemail-followup] sending via ${adapter.provider} to ${prospect.phone} (prospect ${prospect.id})`);
+  try {
+    const result = await adapter.send({ to: prospect.phone, body });
+    console.log(`[voicemail-followup] sent, externalId=${result.externalId}`);
+    await prisma.outreachToolCall.create({
+      data: {
+        callId: outreachCallId,
+        toolName: "sms_followup_sent",
+        input: { to: prospect.phone, body } as any,
+        output: { externalId: result.externalId } as any,
+        latencyMs: 0,
+      },
+    }).catch(() => undefined);
+  } catch (err) {
+    console.error("[voicemail-followup] Twilio rejected:", err);
+    await logSkip(`Twilio error: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
