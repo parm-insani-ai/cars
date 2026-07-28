@@ -44,6 +44,21 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  // Add-to-Home-Screen support so the operator can pin insani GTM to their
+  // phone home screen and it opens fullscreen (no browser chrome) like an app.
+  manifest: "/manifest.json",
+  themeColor: "#0f172a",
+  appleWebApp: {
+    capable: true,
+    title: "insani",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport = {
+  // Lets the site occupy the notch area on iOS when installed as a PWA.
+  viewportFit: "cover" as const,
+  themeColor: "#0f172a",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

@@ -21,6 +21,10 @@ const PUBLIC_PATHS = [
   "/api/mock-checkout/confirm",
   "/api/inngest",
   "/api/cron/outreach-dispatch",
+  "/api/cron/outreach-digest",
+  "/manifest.json",
+  "/icon.svg",
+  "/apple-icon",
   "/mock-checkout",
   "/deposit",
 ];

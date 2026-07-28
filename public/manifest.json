@@ -1,0 +1,15 @@
+{
+  "name": "insani GTM",
+  "short_name": "insani",
+  "description": "Insani AI outreach operator console.",
+  "start_url": "/outreach",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any",     "type": "image/svg+xml", "purpose": "any"     },
+    { "src": "/icon.svg", "sizes": "any",     "type": "image/svg+xml", "purpose": "maskable" },
+    { "src": "/apple-icon", "sizes": "180x180", "type": "image/png",     "purpose": "any"    }
+  ]
+}
