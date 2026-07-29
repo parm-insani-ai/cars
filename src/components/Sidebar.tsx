@@ -31,6 +31,7 @@ const ITEMS: Item[] = [
   { href: "/outreach/prospects", label: "Prospects",    icon: <TargetIcon />, section: "growth" },
   { href: "/outreach/campaigns", label: "Outreach campaigns", icon: <MegaphoneIcon />, section: "growth" },
   { href: "/outreach/calls",     label: "All calls",    icon: <PhoneIcon />, section: "growth" },
+  { href: "/outreach/analytics", label: "Analytics",    icon: <ChartIcon />, section: "growth" },
   { href: "/outreach/demos",     label: "Booked demos",  icon: <CalendarIcon />, section: "growth" },
   { href: "/outreach/simulate",  label: "Try the rep",   icon: <PlayIcon />, section: "growth" },
 ];

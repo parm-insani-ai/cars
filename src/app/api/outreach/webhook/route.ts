@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyVapiSignature } from "@/integrations/vapi";
 import { executeOutreachTool } from "@/outreach/tools";
 import { summarizeOutreachCall } from "@/outreach/run";
+import { nextAttemptTime } from "@/outreach/schedule";
 
 // Vapi lifecycle webhook for outbound AI sales calls. Outbound calls are placed
 // with a pre-provisioned assistant, so there's no assistant-request here — just
@@ -104,7 +105,9 @@ async function handleEndOfCall(msg: any) {
   const recordingUrl: string | undefined = msg.recordingUrl ?? msg.artifact?.recordingUrl;
   const cost: number | undefined = msg.cost ?? msg.call?.cost;
 
-  const call = callId ? await prisma.outreachCall.findFirst({ where: { vapiCallId: callId } }) : null;
+  const call = callId
+    ? await prisma.outreachCall.findFirst({ where: { vapiCallId: callId }, include: { prospect: true } })
+    : null;
   if (!call) return NextResponse.json({ ok: true, note: "no_call_match" });
 
   const endedAt = new Date();
@@ -131,12 +134,21 @@ async function handleEndOfCall(msg: any) {
         : null;
       const maxAttempts = campaign?.maxAttempts ?? 3;
       if (target.attempts < maxAttempts) {
+        // Smart retry — pick a time-of-day window we haven't tried yet,
+        // rotating morning/afternoon/next-day so we sample different
+        // "when might they be near the phone" moments instead of just
+        // hammering the same 4-hour offset.
+        const next = nextAttemptTime({
+          attemptsSoFar: target.attempts,
+          now: new Date(),
+          timezone: call.prospect.timezone || "America/Halifax",
+        });
         await prisma.outreachTarget.update({
           where: { id: target.id },
           data: {
             status: "pending",
-            nextAttemptAt: new Date(Date.now() + 4 * 60 * 60 * 1000), // retry in ~4h
-            outcomeNote: "No contact made — re-queued for another attempt",
+            nextAttemptAt: next,
+            outcomeNote: `No contact made — re-queued for attempt ${target.attempts + 1} at ${next.toISOString()}`,
           },
         });
       } else {

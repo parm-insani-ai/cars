@@ -23,6 +23,12 @@ export type SourcedProspect = {
   lng: number | null;
   rating: number | null;
   reviewsCount: number | null;
+  // Best-guess owner name extracted from review text ("Bob was amazing" /
+  // "Jennifer takes great care of us"). Null when no clear name emerges.
+  // Lets Ava open with "Hi, is Jennifer around?" instead of the generic
+  // "the owner or manager please" — dramatically better gatekeeper pass-
+  // through in SMB cold calls.
+  ownerName: string | null;
 };
 
 export function googlePlacesAvailable(): boolean {
@@ -54,6 +60,9 @@ export async function sourceProspects(args: {
         "places.userRatingCount",
         "places.location",
         "places.addressComponents",
+        // Review text is the source we extract owner names from.
+        "places.reviews",
+        "places.editorialSummary",
       ].join(","),
     },
     body: JSON.stringify({
@@ -94,7 +103,74 @@ function mapPlace(p: any, category: ProspectCategory): SourcedProspect | null {
     lng: p.location?.longitude ?? null,
     rating: typeof p.rating === "number" ? p.rating : null,
     reviewsCount: typeof p.userRatingCount === "number" ? p.userRatingCount : null,
+    ownerName: extractOwnerNameFromReviews(p.reviews, name),
   };
+}
+
+// Simple name-extraction over review text. Looks for owner-referring patterns
+// ("Bob was amazing", "Jennifer is the best", "Sarah's team", "ask for Mike")
+// and returns the name mentioned across the MOST reviews. Requires ≥2 mentions
+// so a one-off customer name doesn't get picked. Returns null when nothing
+// clears the bar.
+//
+// Heuristics — not perfect, but the false-positive cost is low: worst case Ava
+// asks for "Jennifer" and gets "she doesn't work here anymore" which is still
+// a warmer entry than "the owner or manager please".
+export function extractOwnerNameFromReviews(reviews: any, businessName: string): string | null {
+  if (!Array.isArray(reviews) || reviews.length === 0) return null;
+
+  const OWNER_HINT_PATTERNS = [
+    /\b([A-Z][a-z]{2,15})\s+was\s+(amazing|great|wonderful|so\s+kind|so\s+nice|so\s+helpful|so\s+professional|the\s+best|awesome|fantastic|excellent|super)/,
+    /\b([A-Z][a-z]{2,15})\s+is\s+(amazing|great|wonderful|the\s+best|so\s+kind|so\s+nice|so\s+helpful|so\s+professional|awesome|fantastic|excellent)/,
+    /\bask\s+for\s+([A-Z][a-z]{2,15})\b/i,
+    /\b([A-Z][a-z]{2,15})['’]s\s+(team|shop|salon|studio|staff|crew)/,
+    /\bthe\s+owner\s+([A-Z][a-z]{2,15})\b/i,
+    /\bowner[,]?\s+([A-Z][a-z]{2,15})[,\s]/i,
+    /\b([A-Z][a-z]{2,15})[,\s]+the\s+owner\b/i,
+    /\b([A-Z][a-z]{2,15})\s+took\s+(great\s+)?care/,
+    /\b([A-Z][a-z]{2,15})\s+did\s+(a\s+)?(great|amazing|wonderful|fantastic)/,
+  ];
+
+  const STOP_NAMES = new Set([
+    // Common noise words that pattern-match as capitalized names but aren't.
+    "Great","Amazing","Excellent","Best","Nice","Good","Bad","Terrible","Awful",
+    "Very","Really","Super","Highly","Definitely","Absolutely","Would",
+    "Halifax","Dartmouth","Bedford","Nova","Scotia","Canada",
+    "Google","Yelp","Facebook",
+    "Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday",
+    "January","February","March","April","May","June","July","August","September","October","November","December",
+    "The","This","That","They","There","Their","Them","She","He","His","Her","Hers",
+  ]);
+
+  // Words in the business name are almost certainly not the owner's first name.
+  const nameWords = new Set(businessName.split(/\s+/).map(w => w.replace(/[^A-Za-z]/g, "")).filter(Boolean));
+
+  const counts = new Map<string, number>();
+  for (const r of reviews) {
+    const text: string = String(r?.text?.text ?? r?.originalText?.text ?? "");
+    if (!text) continue;
+    const seenInThisReview = new Set<string>();
+    for (const pattern of OWNER_HINT_PATTERNS) {
+      const m = text.match(pattern);
+      if (!m) continue;
+      const name = m[1];
+      if (!name) continue;
+      if (STOP_NAMES.has(name)) continue;
+      if (nameWords.has(name)) continue;
+      if (seenInThisReview.has(name)) continue;
+      seenInThisReview.add(name);
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+  }
+
+  // Require ≥2 mentions across distinct reviews so a random customer's name
+  // ("thanks to Susan for choosing us") doesn't get promoted to "the owner".
+  let best: { name: string; count: number } | null = null;
+  for (const [name, count] of counts) {
+    if (count < 2) continue;
+    if (!best || count > best.count) best = { name, count };
+  }
+  return best?.name ?? null;
 }
 
 // Best-effort E.164 normalization. Places returns numbers like "+1 902-555-0142".
@@ -143,6 +219,7 @@ function mockProspects(category: ProspectCategory, area: string, limit: number):
       lng: null,
       rating: Number((3.6 + ((i * 37) % 14) / 10).toFixed(1)),
       reviewsCount: 8 + ((i * 53 + category.id.length * 17) % 340),
+      ownerName: null,
     });
   }
   return out;
