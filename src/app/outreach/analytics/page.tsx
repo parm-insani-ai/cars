@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { categoryLabel } from "@/outreach/categories";
+import { BackfillOwnersButton } from "./BackfillOwnersButton";
 
 export const dynamic = "force-dynamic";
 
@@ -174,6 +175,8 @@ export default async function OutreachAnalyticsPage({
           ))}
         </div>
       </div>
+
+      <BackfillOwnersButton />
 
       {/* Per-category */}
       <div className="card overflow-hidden">

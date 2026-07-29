@@ -16,11 +16,27 @@ const PurgeBody = z.object({
   category: z.string().min(1),
 });
 
+const BackfillBody = z.object({
+  op: z.literal("backfill-owner-names"),
+  limit: z.number().int().min(1).max(50).optional(),
+});
+
 export async function POST(req: NextRequest) {
   const user = await requireUser();
   if (user.role !== "admin") return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const raw = await req.json();
+
+  // Backfill Prospect.ownerName for prospects sourced before the extractor
+  // existed. Batched — one call processes up to 25 (or the client-specified
+  // limit up to 50) so we stay under Vercel's serverless timeout. Client
+  // polls until done: true.
+  const backfill = BackfillBody.safeParse(raw);
+  if (backfill.success) {
+    const { backfillOwnerNamesBatch } = await import("@/outreach/backfill");
+    const result = await backfillOwnerNamesBatch(backfill.data.limit ?? 25);
+    return NextResponse.json({ ok: true, ...result });
+  }
 
   // Bulk purge — deletes every prospect in a given category along with their
   // calls, turns, tool calls, and targets. Removes their targets from every

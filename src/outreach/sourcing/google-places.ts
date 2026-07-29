@@ -35,6 +35,28 @@ export function googlePlacesAvailable(): boolean {
   return Boolean(env.GOOGLE_PLACES_API_KEY);
 }
 
+// Fetch a single place by placeId, returning the raw reviews array so the
+// owner-name extractor can run over it. Used by the backfill flow to enrich
+// existing prospects that were sourced before we started asking Places for
+// review text. Returns [] on any failure — we don't want a single bad row to
+// abort the whole batch.
+export async function fetchPlaceReviews(placeId: string): Promise<any[]> {
+  if (!googlePlacesAvailable()) return [];
+  try {
+    const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+      headers: {
+        "X-Goog-Api-Key": env.GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": "reviews",
+      },
+    });
+    if (!res.ok) return [];
+    const j: any = await res.json();
+    return Array.isArray(j.reviews) ? j.reviews : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function sourceProspects(args: {
   categoryId: string;
   area: string; // an HRM community, e.g. "Dartmouth, NS"
