@@ -1,10 +1,22 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { NavProgress } from "@/components/NavProgress";
 import { getCurrentUser } from "@/lib/auth";
 import { setupComplete } from "@/lib/integrations";
+
+// Inter Variable — the enterprise-SaaS default (Linear, Vercel, Notion,
+// Retool, Attio all use it). Variable weight, tight kerning at small sizes,
+// tabular numerals. Self-hosted through next/font so there's no external
+// stylesheet request and no font-swap flash.
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://insani.ai"),
@@ -66,8 +78,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   if (!user) {
     return (
-      <html lang="en">
-        <body>
+      <html lang="en" className={inter.variable}>
+        <body className="font-sans">
           <NavProgress />
           <main className="min-h-screen">{children}</main>
         </body>
@@ -76,8 +88,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className={inter.variable}>
+      <body className="font-sans">
         <NavProgress />
         <div className="h-screen flex overflow-hidden">
           <Sidebar setupComplete={setupComplete()} showOutreach={user.role === "admin"} />

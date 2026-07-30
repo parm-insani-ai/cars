@@ -60,7 +60,7 @@ export function Sidebar({ setupComplete, showOutreach }: { setupComplete?: boole
   const asideCls =
     "w-60 flex-none border-r border-surface-border bg-white h-screen overflow-y-auto p-3 flex flex-col " +
     "md:static md:translate-x-0 " +
-    "fixed inset-y-0 left-0 z-50 transition-transform " +
+    "fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out " +
     (mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0");
 
   // The operator (GTM admin) only needs the outreach tools — none of the
@@ -132,18 +132,18 @@ function MobileOverlay({ open, onClose }: { open: boolean; onClose: () => void }
 
 function BrandHeader({ title, onClose }: { title: string; onClose: () => void }) {
   return (
-    <div className="mb-4 px-2 flex items-center justify-between gap-2">
+    <div className="mb-2 px-2 pt-1 pb-3 border-b border-surface-divider flex items-center justify-between gap-2">
       <span className="flex items-center gap-2">
         <Logo />
-        <span className="font-semibold tracking-tight">{title}</span>
+        <span className="font-semibold tracking-tight text-[15px] text-ink">{title}</span>
       </span>
       <button
         type="button"
         aria-label="Close menu"
         onClick={onClose}
-        className="md:hidden text-ink-muted hover:text-ink p-1"
+        className="md:hidden text-ink-muted hover:text-ink p-1 rounded-md hover:bg-surface-sub"
       >
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 6L6 18M6 6l12 12" />
         </svg>
       </button>
@@ -168,9 +168,11 @@ function pickActiveHref(pathname: string, items: Item[]): string | null {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="mt-4">
-      <div className="text-[10px] uppercase tracking-wider text-ink-muted px-2 mb-1">{title}</div>
-      <div className="space-y-0.5">{children}</div>
+    <div className="mt-5 first:mt-2">
+      <div className="text-[10px] uppercase tracking-[0.08em] font-semibold text-ink-faint px-3 mb-1.5">
+        {title}
+      </div>
+      <div className="space-y-px">{children}</div>
     </div>
   );
 }
@@ -180,19 +182,24 @@ function NavLink({ href, label, icon, active, badge, onClick }: Item & { active:
     <Link
       href={href}
       onClick={onClick}
+      aria-current={active ? "page" : undefined}
       className={
-        "flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors " +
+        "group relative flex items-center justify-between gap-2 pl-3 pr-2 py-1.5 rounded-lg text-sm font-medium " +
         (active
-          ? "bg-ink text-white"
-          : "text-ink hover:bg-surface-sub")
+          ? "bg-surface-sub text-ink"
+          : "text-ink-soft hover:bg-surface-sub/70 hover:text-ink")
       }
     >
-      <span className="flex items-center gap-2">
-        <span className={active ? "text-white" : "text-ink-muted"}>{icon}</span>
-        <span>{label}</span>
+      {/* Active-state accent stripe on the left — subtle "you are here". */}
+      {active && (
+        <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-lane" aria-hidden="true" />
+      )}
+      <span className="flex items-center gap-2.5 min-w-0">
+        <span className={active ? "text-ink" : "text-ink-muted group-hover:text-ink-soft"}>{icon}</span>
+        <span className="truncate">{label}</span>
       </span>
       {badge && (
-        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-lane-warm/15 text-amber-700">
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-lane-warm/15 text-amber-700">
           {badge}
         </span>
       )}
@@ -209,7 +216,7 @@ const ic = (children: ReactNode) => (
 );
 function Logo() {
   return (
-    <span className="w-7 h-7 rounded-lg bg-ink text-white flex items-center justify-center">
+    <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-ink-soft to-ink text-white flex items-center justify-center shadow-elev-1">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 12a9 9 0 1 0 9-9" />
         <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
