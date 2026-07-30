@@ -56,6 +56,15 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  // Google Search Console meta-tag verification. Once you claim the property
+  // in Search Console and pick "HTML tag" as the verification method, paste
+  // the content= value (a random-looking string) into GOOGLE_SITE_VERIFICATION
+  // in Vercel env vars. Next.js renders this as
+  //   <meta name="google-site-verification" content="..." />
+  // and Google finds it on the next re-check.
+  verification: process.env.GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+    : undefined,
   // Add-to-Home-Screen support so the operator can pin insani GTM to their
   // phone home screen and it opens fullscreen (no browser chrome) like an app.
   manifest: "/manifest.json",
@@ -73,12 +82,43 @@ export const viewport = {
   themeColor: "#0f172a",
 };
 
+// Organization schema — helps Google understand what "Insani AI" is and
+// what to show in the brand knowledge panel, search snippets, and sitelinks.
+// Rendered in every page's <head> as JSON-LD, which is the format Google
+// prefers for structured data.
+const ORGANIZATION_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Insani AI",
+  legalName: "Insani Technologies",
+  url: "https://insani.ai",
+  logo: "https://insani.ai/apple-icon",
+  description:
+    "Insani AI is an AI employee for service businesses — it answers every call, books appointments, follows up with customers, and carries out tasks specific to your business.",
+  areaServed: { "@type": "Country", name: "Canada" },
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "Halifax",
+    addressRegion: "NS",
+    addressCountry: "CA",
+  },
+  sameAs: [] as string[],
+};
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
+
+  const structuredData = (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSON_LD) }}
+    />
+  );
 
   if (!user) {
     return (
       <html lang="en" className={inter.variable}>
+        <head>{structuredData}</head>
         <body className="font-sans">
           <NavProgress />
           <main className="min-h-screen">{children}</main>
@@ -89,6 +129,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en" className={inter.variable}>
+      <head>{structuredData}</head>
       <body className="font-sans">
         <NavProgress />
         <div className="h-screen flex overflow-hidden">
