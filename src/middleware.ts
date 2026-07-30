@@ -25,6 +25,8 @@ const PUBLIC_PATHS = [
   "/manifest.json",
   "/icon.svg",
   "/apple-icon",
+  "/robots.txt",
+  "/sitemap.xml",
   "/mock-checkout",
   "/deposit",
 ];
