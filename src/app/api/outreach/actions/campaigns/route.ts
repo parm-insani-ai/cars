@@ -118,16 +118,18 @@ export async function POST(req: NextRequest) {
     if (!c) return NextResponse.json({ error: "not_found" }, { status: 404 });
     const status = op === "start" ? "running" : op === "pause" ? "paused" : "canceled";
 
-    // Reopening a canceled or completed campaign: reset any targets that were
-    // parked when the campaign stopped (skipped due to config gaps, or that
-    // never got a real answer) back to "pending" so the dispatcher will pick
-    // them up again. We deliberately leave "failed", "completed", or already-
-    // "converted" targets alone — those had a real outcome we shouldn't undo.
+    // Reopening a canceled or completed campaign: reset every non-terminal
+    // target back to "pending" so the dispatcher will pick them up again.
+    // "Failed" is included here because most failures are infrastructure or
+    // transient (Vapi rate-limit, DB outage, network blip) — the operator's
+    // explicit "reopen" click means "try these again." Genuinely won't-retry
+    // outcomes ("completed", "opted_out") stay put. We still respect the
+    // per-target maxAttempts ceiling so nobody gets dialed forever.
     if (op === "start" && (c.status === "canceled" || c.status === "completed")) {
       await prisma.outreachTarget.updateMany({
         where: {
           campaignId: c.id,
-          status: { in: ["skipped", "calling"] },
+          status: { in: ["skipped", "calling", "failed"] },
           attempts: { lt: c.maxAttempts },
         },
         data: { status: "pending", nextAttemptAt: null, outcomeNote: null },
