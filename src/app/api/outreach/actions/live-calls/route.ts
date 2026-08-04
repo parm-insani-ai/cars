@@ -8,6 +8,13 @@ import { prisma } from "@/lib/prisma";
 // pulls the columns the client actually renders so payload stays tiny.
 
 export const runtime = "nodejs";
+// Force per-request evaluation. Without this Next.js tries to statically
+// prerender the route at build time because GET() takes no arguments — but
+// the function calls prisma.findMany(), which needs a live DB connection.
+// Build fails with "Error occurred prerendering page /api/outreach/actions/
+// live-calls" every time. Marking dynamic tells Next this endpoint is a
+// per-request runtime handler, not a static asset.
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   // Only show truly-live calls. Vapi caps calls at ~10 minutes, so anything
